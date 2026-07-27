@@ -21,6 +21,8 @@ JobTracker combines public-job collection, resume-aware triage, visa-language re
 - The extension reads browser-visible public job-result cards; it does not handle LinkedIn credentials or bypass access controls.
 - Visa results are job-posting analysis, not legal advice. Employer history does not guarantee sponsorship.
 
+See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) before deploying or sharing the project.
+
 ## Requirements
 
 - Python 3.10+
