@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <style>
+      :root {
+        --ink: #17202a;
+        --muted: #65717d;
+        --accent: #ad3d2d;
+        --paper: #fffaf2;
+      }
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 20px;
+        color: var(--ink);
+        background: var(--paper);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      h1 { margin: 0 0 8px; font-size: 1.35rem; }
+      p { color: var(--muted); line-height: 1.4; }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 16px;
+        color: white;
+        background: var(--accent);
+        font: inherit;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      button:disabled { opacity: 0.6; cursor: wait; }
+      #status { min-height: 42px; margin-bottom: 0; }
+      label { display: block; margin: 14px 0 6px; color: var(--muted); font-size: 0.9rem; }
+      input { box-sizing: border-box; width: 100%; margin-bottom: 10px; padding: 9px; border: 1px solid #d7c7b7; border-radius: 8px; font: inherit; }
+      .secondary { margin-top: 9px; color: var(--ink); background: #d9c1a8; }
+      .hidden { display: none; }
+      .error { color: #922b21; }
+      .success { color: #196f4b; }
+    </style>
+  </head>
+  <body>
+    <h1>Job Tracker Helper</h1>
+    <p>Start on a LinkedIn Jobs search. The extension collects visible result cards; Job Tracker then fetches publicly accessible descriptions locally and updates local matches. It never signs in or bypasses access controls.</p>
+    <label for="page-limit">Maximum pages (up to 15)</label>
+    <input id="page-limit" type="number" min="1" max="15" value="12">
+    <button id="collect" type="button">Collect visible pages</button>
+    <button id="stop" class="secondary hidden" type="button">Stop collection</button>
+    <p id="status">Keep the local Flask app running, then start collection.</p>
+    <script src="popup.js"></script>
+  </body>
+</html>

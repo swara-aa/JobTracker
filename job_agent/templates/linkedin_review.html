@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>LinkedIn Review Import</title>
+    <style>
+      :root {
+        --bg: #f3efe8;
+        --paper: #fffaf2;
+        --ink: #1f2933;
+        --muted: #5b6875;
+        --accent: #aa3a2a;
+        --accent-soft: #f5d9cb;
+        --line: #dfd5c7;
+        --shadow: rgba(31, 41, 51, 0.08);
+        --good: #1f6b52;
+        --good-soft: #d8efe4;
+        --bad: #8f2d23;
+        --bad-soft: #f6d9d5;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, #fffdf8 0%, transparent 35%),
+          linear-gradient(180deg, #efe7da 0%, var(--bg) 100%);
+      }
+      .page {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+      .panel {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 16px 40px var(--shadow);
+        margin-bottom: 22px;
+      }
+      h1, h2 {
+        margin-top: 0;
+      }
+      .subtitle, .muted {
+        color: var(--muted);
+      }
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      input, select, textarea, button, a.button {
+        font: inherit;
+      }
+      input, select, textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        color: var(--ink);
+      }
+      textarea {
+        min-height: 240px;
+        resize: vertical;
+      }
+      button, a.button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      button {
+        background: var(--accent);
+        color: #fff;
+      }
+      a.button {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      a.bookmarklet {
+        display: inline-block;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 700;
+        box-shadow: 0 8px 20px rgba(170, 58, 42, 0.2);
+      }
+      pre {
+        padding: 16px;
+        border-radius: 16px;
+        overflow-x: auto;
+        background: #2a2420;
+        color: #f8f2ea;
+        font-size: 0.92rem;
+      }
+      .notice {
+        padding: 14px 16px;
+        border-radius: 14px;
+        margin-top: 16px;
+      }
+      .notice.good {
+        background: var(--good-soft);
+        color: var(--good);
+      }
+      .notice.bad {
+        background: var(--bad-soft);
+        color: var(--bad);
+      }
+      ol {
+        padding-left: 22px;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="panel">
+        <h1>LinkedIn Review Mode</h1>
+        <p class="subtitle">Use your own LinkedIn browser session and save the visible jobs to the local SQLite tracker with one click. Your login never leaves LinkedIn.</p>
+        <div class="actions">
+          <a class="button" href="/">Back To Triage Table</a>
+        </div>
+        {% if message %}
+        <div class="notice good">{{ message }}</div>
+        {% endif %}
+        {% if error %}
+        <div class="notice bad">{{ error }}</div>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>LinkedIn Browser Helper</h2>
+        <p>Install the included Edge/Chrome extension once, then use its <strong>Collect visible jobs</strong> button on LinkedIn.</p>
+        <ol>
+          <li>Open <code>edge://extensions</code> and turn on <strong>Developer mode</strong>.</li>
+          <li>Click <strong>Load unpacked</strong> and select <code>C:\Users\prach\OneDrive\Documents\JobTracker\browser_extension</code>.</li>
+          <li>Keep this Flask app running, then open LinkedIn Jobs with USA, <strong>Past week</strong>, and Entry level filters.</li>
+          <li>Scroll the results list to load cards, click the extensions icon, choose <strong>Job Tracker Helper</strong>, and click <strong>Collect loaded jobs</strong>.</li>
+        </ol>
+        <p class="muted">The helper saves every visible card containing a job link. Hidden title, company, or location values receive an "Unknown" placeholder. LinkedIn search filters control which jobs are shown.</p>
+      </section>
+
+      <details class="panel">
+        <summary><strong>Older bookmark and manual fallback tools</strong></summary>
+        <p class="muted">The extension above is recommended. The bookmark is retained only as a fallback.</p>
+        <div class="actions">
+          <a class="button bookmarklet" href="{{ bookmarklet }}">Save visible LinkedIn jobs</a>
+        </div>
+        <p class="muted">If the bookmark stops working after a LinkedIn layout change, run this snippet in the browser console and paste its result below.</p>
+        <pre>{{ snippet }}</pre>
+        <form id="json-import-form" method="post">
+          <input type="hidden" name="action" value="import-json">
+          <input id="capture-mode" type="hidden" name="capture_mode" value="">
+          <div class="field">
+            <label for="payload">Copied LinkedIn JSON</label>
+            <textarea id="payload" name="payload" placeholder='[{"title":"Junior Software Engineer","company":"Example","location":"New York, NY","posting_date_text":"5 hours ago","link":"https://www.linkedin.com/jobs/view/..."}]'></textarea>
+          </div>
+          <div class="actions">
+            <button type="submit">Import Jobs</button>
+          </div>
+        </form>
+      </details>
+
+      <section class="panel">
+        <h2>Manual Add</h2>
+        <p class="muted">If a page layout changes or you want to save one job at a time, enter it manually here.</p>
+        <form method="post">
+          <input type="hidden" name="action" value="manual-add">
+          <div class="grid">
+            <div class="field">
+              <label for="role_query">Role</label>
+              <select id="role_query" name="role_query">
+                <option value="">Infer from title</option>
+                <option value="Software Engineer">Software Engineer</option>
+                <option value="AI/ML Engineer">AI/ML Engineer</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="posting_date_text">Posting Date Text</label>
+              <input id="posting_date_text" name="posting_date_text" placeholder="e.g. 6 hours ago">
+            </div>
+            <div class="field">
+              <label for="title">Title</label>
+              <input id="title" name="title" required>
+            </div>
+            <div class="field">
+              <label for="company">Company</label>
+              <input id="company" name="company" required>
+            </div>
+            <div class="field">
+              <label for="location">Location</label>
+              <input id="location" name="location" required>
+            </div>
+            <div class="field">
+              <label for="link">Link</label>
+              <input id="link" name="link" required>
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit">Save Manual Job</button>
+          </div>
+        </form>
+      </section>
+    </main>
+    <script>
+      (() => {
+        const prefix = "#capture=";
+        if (!window.location.hash.startsWith(prefix)) return;
+
+        const form = document.getElementById("json-import-form");
+        const payload = document.getElementById("payload");
+        const captureMode = document.getElementById("capture-mode");
+        try {
+          payload.value = decodeURIComponent(window.location.hash.slice(prefix.length));
+          captureMode.value = "bookmark";
+          history.replaceState(null, "", window.location.pathname);
+          form.submit();
+        } catch (error) {
+          history.replaceState(null, "", window.location.pathname);
+          alert("The LinkedIn capture could not be read. Please try the bookmark again.");
+        }
+      })();
+    </script>
+  </body>
+</html>

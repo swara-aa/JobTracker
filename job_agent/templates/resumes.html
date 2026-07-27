@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Resume Library · Job Tracker</title>
+    <style>
+      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#5b6875; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#1f6b52; --bad:#8f2d23; }
+      * { box-sizing:border-box; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,#fffdf8,transparent 35%),var(--bg); font-family:Georgia,"Times New Roman",serif; }
+      main { max-width:900px; margin:0 auto; padding:32px 20px 56px; }
+      .panel { margin-bottom:20px; padding:26px; border:1px solid var(--line); border-radius:20px; background:var(--paper); box-shadow:0 14px 36px rgba(31,41,51,.07); }
+      h1 { margin:0 0 8px; font-size:clamp(2rem,5vw,3.3rem); }
+      h2 { margin-top:0; }
+      p { line-height:1.5; }
+      .muted { color:var(--muted); }
+      .button,button { display:inline-block; border:0; border-radius:999px; padding:12px 18px; font:inherit; text-decoration:none; cursor:pointer; }
+      .button { color:var(--accent); background:var(--soft); }
+      button { color:white; background:var(--accent); }
+      input[type=file] { display:block; width:100%; margin:18px 0; padding:16px; border:1px dashed var(--line); border-radius:14px; background:white; font:inherit; }
+      .resume { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid var(--line); }
+      .resume:last-child { border-bottom:0; }
+      .resume h3 { margin:0 0 4px; }
+      .notice,.error { margin:16px 0; padding:13px 15px; border-radius:12px; }
+      .notice { background:#d8efe4; color:var(--good); }
+      .error { background:#f6d9d5; color:var(--bad); }
+      @media(max-width:600px) { main{padding:18px 12px 40px}.panel{padding:20px}.resume{align-items:flex-start;flex-direction:column} }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <a class="button" href="/">Back to jobs</a>
+        <h1>Resume Library</h1>
+        <p class="muted">Store up to four resume versions. PDF, DOCX, and TXT files are supported; extracted text stays in your local SQLite database.</p>
+        {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+        {% if resumes|length < 4 %}
+        <form method="post" enctype="multipart/form-data">
+          <input type="file" name="resumes" accept=".pdf,.docx,.txt" multiple required>
+          <button type="submit">Upload resume{% if 4 - resumes|length > 1 %}s{% endif %}</button>
+        </form>
+        {% else %}
+        <p><strong>All four resume slots are filled.</strong> Delete one below to upload a replacement.</p>
+        {% endif %}
+      </section>
+      <section class="panel">
+        <h2>{{ resumes|length }} of 4 resumes</h2>
+        {% for resume in resumes %}
+        <div class="resume">
+          <div><h3>{{ resume.name }}</h3><span class="muted">{{ resume.filename }} · {{ resume.content|length }} characters extracted</span></div>
+          <form method="post" action="/resumes/{{ resume.id }}/delete" onsubmit="return confirm('Delete this resume and its saved match scores?')">
+            <button type="submit">Delete</button>
+          </form>
+        </div>
+        {% else %}
+        <p class="muted">No resumes uploaded yet.</p>
+        {% endfor %}
+      </section>
+    </main>
+  </body>
+</html>

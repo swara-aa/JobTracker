@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Job Tracker</title>
+    <style>
+      :root {
+        --bg: #f3efe8;
+        --paper: #fffaf2;
+        --ink: #1f2933;
+        --muted: #5b6875;
+        --accent: #aa3a2a;
+        --accent-soft: #f5d9cb;
+        --line: #dfd5c7;
+        --shadow: rgba(31, 41, 51, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Georgia, "Times New Roman", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, #fffdf8 0%, transparent 35%),
+          linear-gradient(180deg, #efe7da 0%, var(--bg) 100%);
+      }
+
+      .page {
+        max-width: 1240px;
+        margin: 0 auto;
+        padding: 32px 20px 48px;
+      }
+
+      .hero {
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 28px;
+        box-shadow: 0 16px 40px var(--shadow);
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        line-height: 1;
+      }
+
+      .subtitle {
+        margin: 0;
+        color: var(--muted);
+        font-size: 1rem;
+      }
+
+      .filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px;
+        margin: 24px 0 18px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      label {
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      select,
+      input {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: #fff;
+        color: var(--ink);
+        font: inherit;
+      }
+
+      .score-range {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .score-range input {
+        min-width: 0;
+      }
+
+      .actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      button,
+      .link-button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+        font: inherit;
+        text-decoration: none;
+      }
+
+      button {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .link-button {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+
+      .table-card {
+        margin-top: 22px;
+        background: var(--paper);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: 0 16px 40px var(--shadow);
+        overflow: hidden;
+      }
+
+      .priority-queue {
+        margin-top: 22px;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: #fff7eb;
+        box-shadow: 0 16px 40px var(--shadow);
+      }
+
+      .priority-queue h2 { margin: 0 0 6px; }
+      .queue-subtitle { margin: 0 0 18px; color: var(--muted); }
+      .queue-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+      .queue-item { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .queue-item h3 { margin: 0 0 6px; font-size: 1.05rem; }
+      .queue-item p { margin: 4px 0; color: var(--muted); }
+      .queue-score { color: var(--accent); font-weight: bold; }
+
+      .table-wrap {
+        overflow-x: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+        text-align: left;
+      }
+
+      th {
+        background: #f8f1e7;
+        font-size: 0.9rem;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+
+      td a {
+        color: var(--accent);
+      }
+
+      .job-details {
+        min-width: 180px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .detail-item {
+        display: block;
+      }
+
+      .count {
+        padding: 18px 20px 0;
+        color: var(--muted);
+      }
+
+      .pagination {
+        align-items: center;
+        justify-content: center;
+        padding: 18px 20px;
+        color: var(--muted);
+      }
+
+      .empty {
+        padding: 28px 20px 32px;
+        color: var(--muted);
+      }
+
+      .notice {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: #d8efe4;
+        color: #1f6b52;
+      }
+
+      .visa-note {
+        margin: 16px 0 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="topbar">
+          <div>
+            <h1>Entry-Level Job Tracker</h1>
+            <p class="subtitle">Daily collection of new Software Engineer and AI/ML Engineer jobs in the USA, plus browser-assisted LinkedIn review imports.</p>
+          </div>
+          <div class="actions">
+            <a class="link-button" href="/resumes">Resume Library</a>
+            <a class="link-button" href="/linkedin-review">LinkedIn Review Mode</a>
+          </div>
+        </div>
+
+        <form method="get">
+          <div class="filters">
+            <div class="field">
+              <label for="role">Role</label>
+              <select id="role" name="role">
+                <option value="">All roles</option>
+                {% for item in roles %}
+                <option value="{{ item }}" {% if filters.role == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="location">Location</label>
+              <input id="location" name="location" list="location-options" value="{{ filters.location }}" placeholder="Filter by location">
+              <datalist id="location-options">
+                {% for item in locations %}
+                <option value="{{ item }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+
+            <div class="field">
+              <label for="company">Company</label>
+              <input id="company" name="company" list="company-options" value="{{ filters.company }}" placeholder="Filter by company">
+              <datalist id="company-options">
+                {% for item in companies %}
+                <option value="{{ item }}"></option>
+                {% endfor %}
+              </datalist>
+            </div>
+            <div class="field">
+              <label for="visa">Visa / Sponsorship</label>
+              <select id="visa" name="visa">
+                <option value="">All assessments</option>
+                {% for item in visa_assessments %}
+                <option value="{{ item }}" {% if filters.visa == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="sort">Order</label>
+              <select id="sort" name="sort">
+                <option value="" {% if not filters.sort %}selected{% endif %}>Newest first</option>
+                <option value="match" {% if filters.sort == 'match' %}selected{% endif %}>Best resume match first</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="posted_within">Posted</label>
+              <select id="posted_within" name="posted_within">
+                <option value="" {% if not filters.posted_within %}selected{% endif %}>Any time</option>
+                <option value="24h" {% if filters.posted_within == '24h' %}selected{% endif %}>Last 24 hours</option>
+                <option value="week" {% if filters.posted_within == 'week' %}selected{% endif %}>Past week</option>
+                <option value="month" {% if filters.posted_within == 'month' %}selected{% endif %}>Past month</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="minimum_score">Match score</label>
+              <div class="score-range">
+                <input id="minimum_score" name="minimum_score" type="number" min="0" max="100" value="{{ filters.minimum_score }}" placeholder="Min">
+                <span>to</span>
+                <input name="maximum_score" type="number" min="0" max="100" value="{{ filters.maximum_score }}" placeholder="Max">
+              </div>
+            </div>
+            <div class="field">
+              <label for="application_status">Pipeline</label>
+              <select id="application_status" name="application_status">
+                <option value="">All statuses</option>
+                {% for item in application_statuses %}
+                <option value="{{ item }}" {% if filters.application_status == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button type="submit">Apply Filters</button>
+            <a class="link-button" href="/">Reset</a>
+            {% if showing_closed %}
+            <a class="link-button" href="/">Active Job Radar</a>
+            {% elif showing_verification %}
+            <a class="link-button" href="/">Active Job Radar</a>
+            {% else %}
+            <a class="link-button" href="/?view=closed">No Longer Accepting Applications ({{ closed_job_count }})</a>
+            <a class="link-button" href="/?view=verification">Needs Verification ({{ verification_job_count }})</a>
+            {% endif %}
+          </div>
+        </form>
+        {% if not showing_closed and not showing_verification %}
+        <form class="actions" method="post" action="/jobs/score-radar">
+          <input type="hidden" name="role" value="{{ filters.role }}">
+          <input type="hidden" name="location" value="{{ filters.location }}">
+          <input type="hidden" name="company" value="{{ filters.company }}">
+          <input type="hidden" name="visa" value="{{ filters.visa }}">
+          <input type="hidden" name="application_status" value="{{ filters.application_status }}">
+          <input type="hidden" name="sort" value="{{ filters.sort }}">
+          <input type="hidden" name="posted_within" value="{{ filters.posted_within }}">
+          <input type="hidden" name="minimum_score" value="{{ filters.minimum_score }}">
+          <input type="hidden" name="maximum_score" value="{{ filters.maximum_score }}">
+          <input type="hidden" name="view" value="{{ filters.view }}">
+          <button type="submit">Gemini-score top matches (up to 30)</button>
+        </form>
+        {% endif %}
+        <form class="actions" method="post" action="/jobs/local-score-all">
+          <button type="submit">Local pre-score all jobs (no Gemini)</button>
+        </form>
+        <form class="actions" method="post" action="/jobs/backfill-public-details">
+          <button type="submit">Backfill up to 15 public descriptions</button>
+        </form>
+        {% if overnight_status.running %}
+        <form class="actions" method="post" action="/jobs/stop-overnight-public-backfill">
+          <button type="submit">Stop overnight backfill</button>
+        </form>
+        <div class="notice" data-live-progress>
+          <strong>Live description-capture progress</strong><br>
+          {{ overnight_status.message }}<br>
+          Overall: {{ overnight_status.completed }} / {{ overnight_status.target }} completed · {{ overnight_status.remaining }} remaining<br>
+          Batch {{ overnight_status.batches }}/72 · {{ overnight_status.queued }} queued · {{ overnight_status.pending }} pending · {{ overnight_status.captured }} descriptions captured · {{ overnight_status.unavailable }} unavailable
+          {% if overnight_status.current_job %}<br>Current job: {{ overnight_status.current_job }}{% endif %}
+        </div>
+        {% else %}
+        <form class="actions" method="post" action="/jobs/start-overnight-public-backfill">
+          <button type="submit">Start safe overnight description backfill</button>
+        </form>
+        <p class="visa-note">Runs up to 12 hours: 60 public pages every 10 minutes, with an 8-second delay per page. Keep Flask running overnight.</p>
+        {% endif %}
+        {% if import_message %}
+        <div class="notice">{{ import_message }}</div>
+        {% endif %}
+        {% if radar_message %}
+        <div class="notice">{{ radar_message }}</div>
+        {% endif %}
+        <p class="visa-note">Visa assessments distinguish explicit posting language from FY2025 employer H-1B filing history. Historical filings do not guarantee sponsorship for a particular opening; “Unclear” is not the same as “No.”</p>
+      </section>
+
+      <section class="priority-queue">
+        <h2>Today’s Priority Queue</h2>
+        <p class="queue-subtitle">Top fresh jobs with a saved resume score, no hard no, and an actionable pipeline status.</p>
+        {% if priority_queue %}
+        <div class="queue-grid">
+          {% for job in priority_queue %}
+          <article class="queue-item">
+            <h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3>
+            <p>{{ job.company }} · {{ job.location }}</p>
+            <p><span class="queue-score">{{ job.best_match_score }}/100 match</span> · {{ job.best_match_source }} · {{ job.posting_date|relative_time }}</p>
+            <p>{{ job.application_status }} · <a href="/jobs/{{ job.id }}">Open and act</a></p>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">No scored, actionable fresh jobs yet. Upload a resume and score the fresh radar to populate this queue.</div>
+        {% endif %}
+      </section>
+
+      <section class="priority-queue">
+        <h2>Skill Gaps to Prioritize</h2>
+        <p class="queue-subtitle">Most frequent missing skills across your latest Gemini resume matches.</p>
+        {% if skill_gaps %}
+        <div class="queue-grid">
+          {% for item in skill_gaps %}
+          <article class="queue-item"><strong>{{ item.skill }}</strong><p>Missing in {{ item.count }} recent match{{ 'es' if item.count != 1 else '' }}</p></article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty">Compare a resume with a few jobs to see your personalized skill-gap trends.</div>
+        {% endif %}
+      </section>
+
+      <section class="priority-queue">
+        <h2>Near-Miss Review</h2>
+        <p class="queue-subtitle">Ranks 21–30 by current match score. Review these weekly to tune your scoring assumptions.</p>
+        {% if near_misses %}
+        <div class="queue-grid">{% for job in near_misses %}<article class="queue-item"><h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3><p>{{ job.company }} · {{ job.local_match_score }}/100 local score</p></article>{% endfor %}</div>
+        {% else %}<div class="empty">More locally scored active jobs are needed to show near misses.</div>{% endif %}
+      </section>
+
+      <section class="table-card">
+        <div class="count">Showing {{ jobs|length }} of {{ jobs_in_view }} {% if showing_closed %}closed{% elif showing_verification %}needs-verification{% else %}active{% endif %} jobs · {{ posted_label }} · {{ total_jobs }} total saved</div>
+        {% if jobs %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Role Query</th>
+                <th>Title</th>
+                <th>Company</th>
+                <th>Location</th>
+                <th>Posting Date</th>
+                <th>Details</th>
+                <th>Visa / Sponsorship</th>
+                <th>Best Match</th>
+                <th>Pipeline</th>
+                <th>Gemini</th>
+                <th>Source</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for job in jobs %}
+              <tr>
+                <td>{{ job.role_query }}</td>
+                <td>{{ job.title }}{% if job.verification_reasons %}<span class="detail-item" title="{{ job.verification_reasons|join('; ') }}">Needs verification</span>{% endif %}</td>
+                <td>{{ job.company }}</td>
+                <td>{{ job.location }}</td>
+                <td>{{ job.posting_date|relative_time }}</td>
+                <td class="job-details">
+                  {% if job.salary %}<span class="detail-item">{{ job.salary }}</span>{% endif %}
+                  {% if job.workplace_type %}<span class="detail-item">{{ job.workplace_type }}</span>{% endif %}
+                  {% if job.employment_type %}<span class="detail-item">{{ job.employment_type }}</span>{% endif %}
+                  {% if job.applicant_count %}<span class="detail-item">{{ job.applicant_count }}</span>{% endif %}
+                  {% if job.easy_apply %}<span class="detail-item">Easy Apply</span>{% endif %}
+                  {% if not job.salary and not job.workplace_type and not job.employment_type and not job.applicant_count and not job.easy_apply %}—{% endif %}
+                </td>
+                <td class="job-details">
+                  {% if job.visa_assessment %}<strong>{{ job.visa_assessment }}</strong>{% else %}Not checked{% endif %}
+                  {% if job.h1b_filings %}<span class="detail-item">{{ job.h1b_filings }} FY2025 filing(s)</span>{% endif %}
+                  {% if job.visa_evidence %}<span class="detail-item" title="{{ job.visa_evidence }}">Evidence: hover</span>{% endif %}
+                  {% if job.visa_source_url %}<a class="detail-item" href="{{ job.visa_source_url }}" target="_blank" rel="noreferrer">DOL source</a>{% endif %}
+                </td>
+                <td class="job-details">
+                  {% if job.resume_match_hard_no or job.local_match_hard_no %}
+                  <strong>Hard no{% if job.local_match_hard_no and not job.resume_match_hard_no %} · local{% endif %}</strong>
+                  <a class="detail-item" href="/jobs/{{ job.id }}">Review reason</a>
+                  {% elif job.resume_match_score is not none %}
+                  <strong>{{ job.resume_match_score }}/100 · Gemini</strong>
+                  <a class="detail-item" href="/jobs/{{ job.id }}">Review match</a>
+                  {% elif job.local_match_score is not none %}
+                  <strong>{{ job.local_match_score }}/100 · Local</strong>
+                  <a class="detail-item" href="/jobs/{{ job.id }}">Review job</a>
+                  {% else %}
+                  <span class="detail-item">Not pre-scored</span>
+                  {% endif %}
+                </td>
+                <td class="job-details">
+                  <strong>{{ job.application_status }}</strong>
+                  {% if job.applied_date %}<span class="detail-item">Applied {{ job.applied_date }}</span>{% endif %}
+                  {% if job.follow_up_date %}<span class="detail-item">Follow up {{ job.follow_up_date }}</span>{% endif %}
+                  <a class="detail-item" href="/jobs/{{ job.id }}">Update</a>
+                </td>
+                <td class="job-details">
+                  {% if job.gemini_status == 'complete' %}
+                  <strong>Analyzed</strong>
+                  {% elif job.gemini_status == 'failed' %}
+                  <strong>Failed</strong>
+                  {% elif job.gemini_status == 'running' %}
+                  <strong>Running</strong>
+                  {% else %}
+                  Not analyzed
+                  {% endif %}
+                  <a class="detail-item" href="/jobs/{{ job.id }}">View / Analyze</a>
+                </td>
+                <td>{{ job.source }}</td>
+                <td><a href="{{ job.link }}" target="_blank" rel="noreferrer">Open</a></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if total_pages > 1 %}
+        <div class="actions pagination">
+          {% if page > 1 %}
+          <a class="link-button" href="{{ url_for('index', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page - 1) }}">Previous</a>
+          {% endif %}
+          <span>Page {{ page }} of {{ total_pages }}</span>
+          {% if page < total_pages %}
+          <a class="link-button" href="{{ url_for('index', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page + 1) }}">Next</a>
+          {% endif %}
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="empty">No {% if showing_verification %}needs-verification{% elif showing_closed %}closed{% endif %} jobs match the current filters.</div>
+        {% endif %}
+      </section>
+    </main>
+    {% if overnight_status.running %}
+    <script>setTimeout(() => window.location.reload(), 5000);</script>
+    {% endif %}
+  </body>
+</html>

@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ job.title }} · Job Tracker</title>
+    <style>
+      :root {
+        --bg: #f3efe8;
+        --paper: #fffaf2;
+        --ink: #1f2933;
+        --muted: #5b6875;
+        --accent: #aa3a2a;
+        --accent-soft: #f5d9cb;
+        --line: #dfd5c7;
+        --good: #1f6b52;
+        --bad: #8f2d23;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: radial-gradient(circle at top left, #fffdf8, transparent 35%), var(--bg);
+        font-family: Georgia, "Times New Roman", serif;
+      }
+      main { max-width: 1100px; margin: 0 auto; padding: 32px 20px 56px; }
+      .panel {
+        margin-bottom: 20px;
+        padding: 26px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: var(--paper);
+        box-shadow: 0 14px 36px rgba(31, 41, 51, 0.07);
+      }
+      h1 { margin: 0 0 8px; font-size: clamp(2rem, 5vw, 3.3rem); line-height: 1; }
+      h2 { margin-top: 0; }
+      h3 { margin-bottom: 8px; }
+      p, li { line-height: 1.55; }
+      .muted { color: var(--muted); }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+      .button, button {
+        display: inline-block;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        color: var(--accent);
+        background: var(--accent-soft);
+        font: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      button { color: white; background: var(--accent); }
+      input, select, textarea {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: white;
+        color: var(--ink);
+        font: inherit;
+      }
+      textarea { min-height: 110px; resize: vertical; }
+      .field { display: flex; flex-direction: column; gap: 6px; }
+      .pipeline-form { margin-top: 14px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+      .notice { margin-top: 16px; padding: 13px 15px; border-radius: 12px; background: #d8efe4; color: var(--good); }
+      .error { margin-top: 16px; padding: 13px 15px; border-radius: 12px; background: #f6d9d5; color: var(--bad); }
+      ul { margin-top: 8px; padding-left: 22px; }
+      .visa { border-left: 5px solid var(--accent); }
+      .match-card { position: relative; }
+      .match-card.best { border: 2px solid var(--good); }
+      .best-label { display: inline-block; margin-bottom: 8px; padding: 5px 10px; border-radius: 999px; background: #d8efe4; color: var(--good); font-weight: bold; }
+      .score-line { display: flex; align-items: center; gap: 14px; margin: 14px 0; }
+      .score { min-width: 74px; font-size: 2rem; font-weight: bold; color: var(--accent); }
+      .score-track { width: 100%; height: 12px; overflow: hidden; border-radius: 999px; background: #eadfd2; }
+      .score-fill { height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent), #dc8b51); }
+      .compact h3 { margin-top: 16px; }
+      .improvement { margin-bottom: 10px; }
+      .advice-action { margin: 8px 0 0 8px; padding: 7px 11px; font-size: 0.88rem; white-space: normal; }
+      .personal-advice { margin-top: 14px; overflow-wrap: anywhere; word-break: break-word; }
+      .personal-advice p { margin: 0 0 10px; }
+      .personal-advice p:last-child { margin-bottom: 0; }
+      .job-description { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+      .captured-detail { margin: 0; overflow-wrap: anywhere; }
+      .hidden { display: none; }
+      @media (max-width: 600px) { main { padding: 18px 12px 40px; } .panel { padding: 20px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <p class="muted">{{ job.company }} · {{ job.location }} · {{ job.posting_date|relative_time }}</p>
+        <h1>{{ job.title }}</h1>
+        <div class="actions">
+          <a class="button" href="/">Back to jobs</a>
+          <a class="button" href="/resumes">Resume Library ({{ resumes|length }}/4)</a>
+          <a class="button" href="{{ job.link }}" target="_blank" rel="noreferrer">Open posting</a>
+          <form method="post" action="/jobs/{{ job.id }}/analyze">
+            <button type="submit">{% if job.gemini_status == 'complete' %}Reanalyze with Gemini{% else %}Analyze with Gemini{% endif %}</button>
+          </form>
+        </div>
+        {% if not gemini_configured %}<div class="error">GEMINI_API_KEY is not configured in the Flask process.</div>{% endif %}
+        {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+        {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Captured Posting Details</h2>
+        <p class="muted">Source: <a href="{{ job.link }}" target="_blank" rel="noreferrer">public LinkedIn posting</a>{% if job.public_captured_at %} · captured {{ job.public_captured_at }}{% endif %}</p>
+        {% if job.public_capture_metadata %}
+        <div class="grid">
+          {% if job.public_capture_metadata.title %}<div><h3>Page title</h3><p class="captured-detail">{{ job.public_capture_metadata.title }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.company %}<div><h3>Page company</h3><p class="captured-detail">{{ job.public_capture_metadata.company }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.location %}<div><h3>Page location</h3><p class="captured-detail">{{ job.public_capture_metadata.location }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.employment_type %}<div><h3>Employment type</h3><p class="captured-detail">{{ job.public_capture_metadata.employment_type }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.date_posted %}<div><h3>Date posted</h3><p class="captured-detail">{{ job.public_capture_metadata.date_posted }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.valid_through %}<div><h3>Valid through</h3><p class="captured-detail">{{ job.public_capture_metadata.valid_through }}</p></div>{% endif %}
+          {% if job.public_capture_metadata.salary %}<div><h3>Salary</h3><p class="captured-detail">{{ job.public_capture_metadata.salary }}</p></div>{% endif %}
+        </div>
+        {% elif job.public_capture_status == 'public_page_unavailable' %}
+        <p class="muted">The public page did not expose additional details without sign-in.</p>
+        {% endif %}
+        <h3>Captured Job Description</h3>
+        {% if job.description %}
+        <div class="job-description">{{ job.description }}</div>
+        {% else %}
+        <p class="muted">No public description has been captured for this job yet. Newly imported LinkedIn jobs are enriched in the local background queue when the public page is available.</p>
+        {% endif %}
+      </section>
+
+      <section class="panel">
+        <h2>Application Pipeline</h2>
+        <p class="muted">Track the next action and follow-up for this job. This stays local in your JobTracker database.</p>
+        <form class="pipeline-form" method="post" action="/jobs/{{ job.id }}/pipeline">
+          <div class="grid">
+            <div class="field">
+              <label for="application_status">Status</label>
+              <select id="application_status" name="application_status">
+                {% for item in application_statuses %}
+                <option value="{{ item }}" {% if job.application_status == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="applied_date">Applied date</label>
+              <input id="applied_date" type="date" name="applied_date" value="{{ job.applied_date }}">
+              {% if job.applied_at %}<p class="muted">Recorded at {{ job.applied_at }}</p>{% endif %}
+            </div>
+            <div class="field">
+              <label for="follow_up_date">Follow-up date</label>
+              <input id="follow_up_date" type="date" name="follow_up_date" value="{{ job.follow_up_date }}">
+            </div>
+            <div class="field">
+              <label for="application_link">Application link</label>
+              <input id="application_link" type="url" name="application_link" value="{{ job.application_link }}" placeholder="Optional application URL">
+            </div>
+          </div>
+          <div class="field pipeline-form">
+            <label for="application_notes">Notes</label>
+            <textarea id="application_notes" name="application_notes" placeholder="Why this role matters, recruiter details, next steps, or questions">{{ job.application_notes }}</textarea>
+          </div>
+          <div class="actions"><button type="submit">Save pipeline update</button></div>
+        </form>
+        {% if job.application_status != 'Closed' %}
+        <form class="actions" method="post" action="/jobs/{{ job.id }}/mark-closed">
+          <button type="submit">Mark no longer accepting applications</button>
+        </form>
+        {% endif %}
+      </section>
+
+      {% if job.local_match_score is not none %}
+      <section class="panel">
+        <h2>Local Pre-Score: {{ job.local_match_score }}/100</h2>
+        <p class="muted">This ranking is computed locally from your stored resume and the saved job text. It does not use Gemini, send data anywhere, or predict interview outcomes.</p>
+        {% if job.local_match_hard_no %}
+        <div class="error"><strong>Local hard no:</strong> {% for item in job.local_match_hard_no_reasons %}{{ item }}{% if not loop.last %} · {% endif %}{% endfor %}</div>
+        {% else %}
+        <div class="grid">
+          <div><h3>Matched local terms</h3><ul>{% for item in job.local_match_evidence %}<li>{{ item }}</li>{% else %}<li>No tracked skill terms found in both texts</li>{% endfor %}</ul></div>
+          <div><h3>Job terms not found locally</h3><ul>{% for item in job.local_match_missing %}<li>{{ item }}</li>{% else %}<li>No tracked skill terms missing</li>{% endfor %}</ul></div>
+        </div>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      {% if job.gemini_status == 'complete' %}
+      <section class="panel">
+        <h2>Gemini Summary</h2>
+        <p>{{ job.gemini_summary }}</p>
+        <div class="grid">
+          <div><h3>Education</h3><p>{{ job.gemini_education or 'Not stated' }}</p></div>
+          <div><h3>Experience</h3><p>{{ job.gemini_experience or 'Not stated' }}</p></div>
+          <div><h3>Location</h3><p>{{ job.gemini_location or job.location }}</p></div>
+          <div><h3>Work arrangement</h3><p>{{ job.gemini_workplace_type or 'Not stated' }}{% if job.gemini_employment_type %} · {{ job.gemini_employment_type }}{% endif %}</p></div>
+        </div>
+      </section>
+
+      <section class="grid">
+        <div class="panel"><h2>Required Skills</h2><ul>{% for item in job.gemini_skills_required %}<li>{{ item }}</li>{% else %}<li>None stated</li>{% endfor %}</ul></div>
+        <div class="panel"><h2>Preferred Skills</h2><ul>{% for item in job.gemini_skills_preferred %}<li>{{ item }}</li>{% else %}<li>None stated</li>{% endfor %}</ul></div>
+        <div class="panel"><h2>Responsibilities</h2><ul>{% for item in job.gemini_responsibilities %}<li>{{ item }}</li>{% else %}<li>None stated</li>{% endfor %}</ul></div>
+        <div class="panel"><h2>Requirements</h2><ul>{% for item in job.gemini_requirements %}<li>{{ item }}</li>{% else %}<li>None stated</li>{% endfor %}</ul></div>
+      </section>
+
+      <section class="panel">
+        <h2>Resume Keywords From This Posting</h2>
+        <p class="muted">Use these exact job terms in your resume only when they are truthfully supported by your experience or projects. Resume comparison below marks which terms are already evidenced and which are missing or not prominent.</p>
+      </section>
+
+      <section class="panel visa">
+        <h2>Posting-Specific Visa Analysis</h2>
+        <p><strong>{{ job.gemini_visa_status }}</strong></p>
+        <p>{{ job.gemini_visa_evidence }}</p>
+        <p class="muted">This summarizes posting language and is not legal advice. Employer filing history is shown separately in the main table.</p>
+      </section>
+      {% elif job.gemini_status == 'failed' %}
+      <section class="panel"><h2>Analysis Failed</h2><p>{{ job.gemini_error }}</p></section>
+      {% else %}
+      <section class="panel"><h2>Not Analyzed Yet</h2><p>Gemini will read the public posting URL and store structured findings here.</p></section>
+      {% endif %}
+
+      <section class="panel">
+        <h2>Resume Match</h2>
+        {% if resumes %}
+        <p class="muted">Compare your {{ resumes|length }} uploaded resume{% if resumes|length != 1 %}s{% endif %} against this posting using the same 100-point rubric.</p>
+        <form method="post" action="/jobs/{{ job.id }}/match-resumes">
+          <button type="submit">{% if resume_matches %}Recompare Resumes{% else %}Compare Resumes with Gemini{% endif %}</button>
+        </form>
+        {% else %}
+        <p>No resumes are available yet. <a href="/resumes">Upload up to four resumes</a> to find the best version for this job.</p>
+        {% endif %}
+      </section>
+
+      {% if resume_matches %}
+      <section class="grid">
+        {% for match in resume_matches %}
+        <article class="panel match-card compact {% if match.is_best %}best{% endif %}">
+          {% if match.is_best %}<span class="best-label">Best resume for this job</span>{% endif %}
+          <h2>{{ match.name }}</h2>
+          <p class="muted">{{ match.filename }}</p>
+          <div class="score-line">
+            <span class="score">{{ match.score }}%</span>
+            <div class="score-track" aria-label="Match score {{ match.score }} out of 100"><div class="score-fill" style="width: {{ match.score }}%"></div></div>
+          </div>
+          {% if match.hard_no %}
+          <div class="error"><strong>Hard no:</strong> this posting has an explicit requirement the candidate cannot meet.</div>
+          <ul>{% for item in match.hard_no_reasons %}<li>{{ item }}</li>{% else %}<li>Review the posting requirement before applying.</li>{% endfor %}</ul>
+          {% endif %}
+          <p>{{ match.rationale }}</p>
+          <h3>Already evidenced in this resume</h3>
+          <ul>{% for item in match.matched_skills %}<li>{{ item }}</li>{% else %}<li>No posting keywords are clearly evidenced yet</li>{% endfor %}</ul>
+          <h3>Missing or should be made prominent</h3>
+          <ul>{% for item in match.missing_skills %}<li>{{ item }}</li>{% else %}<li>No material posting keywords are missing</li>{% endfor %}</ul>
+          <h3>How to improve</h3>
+          <ul>
+            {% for item in match.improvements %}
+            <li class="improvement" data-resume-id="{{ match.resume_id }}" data-improvement="{{ item }}">
+              <span>{{ item }}</span>
+              <button class="advice-action" type="button">Ask how to implement</button>
+            </li>
+            {% else %}
+            <li>No recommendation returned</li>
+            {% endfor %}
+          </ul>
+          <div class="personal-advice notice hidden" aria-live="polite"></div>
+        </article>
+        {% endfor %}
+      </section>
+      <section class="panel"><p class="muted">Scores estimate alignment with this posting, not the probability of an interview. Hard no labels reflect explicit posting language only. Only add skills or experience you can truthfully support.</p></section>
+      {% endif %}
+    </main>
+    <script>
+      document.addEventListener("mouseup", (event) => {
+        const improvement = event.target.closest(".improvement");
+        const selected = window.getSelection().toString().trim();
+        if (!improvement || !selected || !improvement.contains(window.getSelection().anchorNode)) return;
+        const button = improvement.querySelector(".advice-action");
+        button.dataset.selectedImprovement = selected;
+        button.textContent = "Ask about selected text";
+      });
+
+      document.addEventListener("click", async (event) => {
+        const button = event.target.closest(".advice-action");
+        if (!button) return;
+        const improvement = button.closest(".improvement");
+        const advicePanel = improvement.closest(".match-card").querySelector(".personal-advice");
+        const selectedImprovement = button.dataset.selectedImprovement || improvement.dataset.improvement;
+        button.disabled = true;
+        advicePanel.classList.remove("hidden", "error");
+        advicePanel.textContent = "Creating personal, truthful resume guidance...";
+        try {
+          const response = await fetch("/jobs/{{ job.id }}/resume-advice", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              resume_id: Number(improvement.dataset.resumeId),
+              selected_improvement: selectedImprovement,
+            }),
+          });
+          const result = await response.json();
+          if (!response.ok) throw new Error(result.error || "Could not create advice.");
+          const labels = {
+            assessment: "What you already have",
+            where_to_add: "Where to add it",
+            truthful_rewrite: "Truthful rewrite",
+            next_step: "Next step",
+          };
+          advicePanel.replaceChildren(...Object.entries(labels).map(([key, label]) => {
+            const paragraph = document.createElement("p");
+            const heading = document.createElement("strong");
+            heading.textContent = `${label}: `;
+            paragraph.append(heading, result.advice[key] || "No guidance returned.");
+            return paragraph;
+          }));
+        } catch (error) {
+          advicePanel.classList.add("error");
+          advicePanel.textContent = error.message || String(error);
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
