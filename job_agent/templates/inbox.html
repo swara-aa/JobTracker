@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Inbox · Job Tracker</title>
+    <style>
+      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#64717d; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#196a51; }
+      * { box-sizing:border-box; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,#fffdf8 0%,transparent 35%),linear-gradient(180deg,#efe7da 0%,var(--bg) 100%); font-family:Georgia,"Times New Roman",serif; }
+      .page { max-width:1080px; margin:0 auto; padding:32px 20px 56px; }
+      .topbar { display:flex; justify-content:space-between; align-items:center; gap:18px; flex-wrap:wrap; margin-bottom:28px; }
+      h1 { margin:0 0 7px; font-size:clamp(2.2rem,5vw,4rem); line-height:1; }
+      h2 { margin:0; font-size:1.45rem; }
+      .subtitle,.muted { color:var(--muted); }
+      .subtitle { margin:0; font-size:1.03rem; }
+      .nav,.actions { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+      a,.link-button,button { font:inherit; }
+      .link-button { display:inline-block; padding:10px 14px; border-radius:999px; background:var(--soft); color:var(--accent); text-decoration:none; }
+      .link-button.primary,button.primary { background:var(--accent); color:#fff; }
+      .summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:22px; }
+      .metric { padding:16px 18px; background:var(--paper); border:1px solid var(--line); border-radius:14px; }
+      .metric strong { display:block; color:var(--accent); font-size:1.6rem; }
+      .metric span { color:var(--muted); font-size:.9rem; }
+      .card { background:var(--paper); border:1px solid var(--line); border-radius:20px; box-shadow:0 16px 40px rgba(31,41,51,.07); overflow:hidden; }
+      .section-head { display:flex; justify-content:space-between; gap:16px; align-items:end; padding:22px 24px 18px; border-bottom:1px solid var(--line); }
+      .section-head p { margin:5px 0 0; color:var(--muted); }
+      .job { display:grid; grid-template-columns:82px minmax(0,1fr) auto; gap:18px; padding:20px 24px; border-bottom:1px solid var(--line); align-items:center; }
+      .job:last-child { border-bottom:0; }
+      .score { min-width:72px; text-align:center; padding:12px 6px; background:#f8eadf; border-radius:12px; color:var(--accent); font-weight:bold; font-size:1.2rem; }
+      .score small { display:block; margin-top:3px; color:var(--muted); font-size:.7rem; font-weight:normal; }
+      .job h3 { margin:0 0 5px; font-size:1.15rem; }
+      .job h3 a { color:var(--ink); text-decoration:none; }
+      .job h3 a:hover { color:var(--accent); text-decoration:underline; }
+      .job p { margin:4px 0; color:var(--muted); }
+      .tags { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+      .tag { padding:4px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:.8rem; }
+      .tag.good { color:var(--good); border-color:#a9d8c4; background:#e7f5ee; }
+      .job-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
+      form { margin:0; }
+      button { border:0; border-radius:999px; padding:9px 12px; cursor:pointer; background:var(--soft); color:var(--accent); }
+      .empty { padding:34px 24px; color:var(--muted); }
+      .notice { margin-bottom:18px; padding:13px 16px; border-radius:13px; color:var(--good); background:#d8efe4; }
+      .lower { display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-top:18px; }
+      .small-card { padding:20px; }
+      .small-card h2 { margin-bottom:6px; }
+      .small-card p { color:var(--muted); line-height:1.4; }
+      ul { padding-left:20px; color:var(--muted); }
+      li { margin:7px 0; }
+      @media (max-width:720px) { .summary { grid-template-columns:1fr; } .job { grid-template-columns:1fr; gap:12px; } .score { width:88px; } .job-actions { justify-content:flex-start; } .lower { grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div>
+          <h1>Your Job Inbox</h1>
+          <p class="subtitle">Make a decision on the strongest fresh opportunities, then move on.</p>
+        </div>
+        <nav class="nav" aria-label="Primary navigation">
+          <a class="link-button primary" href="/">Inbox</a>
+          <a class="link-button" href="/jobs">Browse Jobs</a>
+          <a class="link-button" href="/resumes">Resume Library</a>
+          <a class="link-button" href="/linkedin-review">Import Jobs</a>
+          <a class="link-button" href="/operations">Operations</a>
+        </nav>
+      </header>
+
+      {% if import_message %}<div class="notice">{{ import_message }}</div>{% endif %}
+      {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+
+      <section class="summary" aria-label="Workspace summary">
+        <article class="metric"><strong>{{ inbox_count }}</strong><span>decisions waiting today</span></article>
+        <article class="metric"><strong>{{ verification_job_count }}</strong><span>jobs need verification</span></article>
+        <article class="metric"><strong>{{ total_jobs }}</strong><span>jobs in your radar</span></article>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>Decide Today</h2>
+            <p>Fresh, scored jobs without a known hard no. A score supports your decision—it is not a prediction.</p>
+          </div>
+          <a class="link-button" href="/jobs?sort=match&amp;posted_within=week">Explore this week</a>
+        </div>
+        {% if inbox_jobs %}
+          {% for job in inbox_jobs %}
+          <article class="job">
+            <div class="score">{{ job.best_match_score }}<small>/100 · {{ job.best_match_source }}</small></div>
+            <div>
+              <h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3>
+              <p>{{ job.company }} · {{ job.location }} · posted {{ job.posting_date|relative_time }}</p>
+              <div class="tags">
+                <span class="tag">{{ job.application_status }}</span>
+                {% if job.visa_assessment %}<span class="tag {% if 'sponsor' in job.visa_assessment|lower %}good{% endif %}">{{ job.visa_assessment }}</span>{% endif %}
+                {% if job.workplace_type %}<span class="tag">{{ job.workplace_type }}</span>{% endif %}
+              </div>
+            </div>
+            <div class="job-actions">
+              <a class="link-button" href="/jobs/{{ job.id }}">Review</a>
+              <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Tailor Resume"><button type="submit">Tailor</button></form>
+              <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Applied"><button class="primary" type="submit">Applied</button></form>
+              <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Not pursuing"><button type="submit">Skip</button></form>
+            </div>
+          </article>
+          {% endfor %}
+        {% else %}
+          <div class="empty">No scored fresh jobs need action right now. Use <a href="/jobs">Browse Jobs</a> to review your radar or <a href="/operations">Operations</a> to manage scoring.</div>
+        {% endif %}
+      </section>
+
+      <section class="lower">
+        <article class="card small-card">
+          <h2>Next best action</h2>
+          <p>Bring in new roles when you are ready, then return here for a short decision queue.</p>
+          <a class="link-button primary" href="/linkedin-review">Import LinkedIn jobs</a>
+        </article>
+        <article class="card small-card">
+          <h2>Skill signals</h2>
+          {% if skill_gaps %}<ul>{% for item in skill_gaps %}<li><strong>{{ item.skill }}</strong> appears missing in {{ item.count }} recent match{{ 'es' if item.count != 1 else '' }}.</li>{% endfor %}</ul>{% else %}<p>Compare resumes with a few jobs to unlock personalized skill trends.</p>{% endif %}
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

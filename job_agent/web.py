@@ -175,6 +175,43 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
+        all_jobs = fetch_jobs()
+        verification_reasons = verification_reasons_by_job(all_jobs)
+        active_jobs = [
+            job
+            for job in all_jobs
+            if job.get("application_status") != "Closed"
+            and int(job["id"]) not in verification_reasons
+        ]
+        inbox_jobs = _build_priority_queue(active_jobs)
+        captured = request.args.get("captured", "").strip()
+        accepted = request.args.get("accepted", "").strip()
+        saved = request.args.get("saved", "").strip()
+        import_message = ""
+        if all(value.isdigit() for value in [captured, accepted, saved]):
+            import_message = (
+                f"Saved {saved} new job(s) from {accepted} readable LinkedIn card(s)."
+                if int(saved)
+                else "The LinkedIn jobs were already in your tracker."
+            )
+        return render_template(
+            "inbox.html",
+            inbox_jobs=inbox_jobs,
+            inbox_count=len(inbox_jobs),
+            total_jobs=len(all_jobs),
+            verification_job_count=sum(
+                job.get("application_status") != "Closed"
+                for job in all_jobs
+                if int(job["id"]) in verification_reasons
+            ),
+            closed_job_count=sum(job.get("application_status") == "Closed" for job in all_jobs),
+            skill_gaps=skill_gap_summary(limit=20)[:5],
+            import_message=import_message,
+            message=request.args.get("message", "").strip(),
+        )
+
+    @app.route("/jobs")
+    def browse_jobs():
         role = request.args.get("role", "").strip()
         location = request.args.get("location", "").strip()
         company = request.args.get("company", "").strip()
@@ -251,25 +288,6 @@ def create_app() -> Flask:
             ]
         for job in matching_jobs:
             job["verification_reasons"] = verification_reasons.get(int(job["id"]), [])
-        priority_queue = _build_priority_queue(
-            [
-                job
-                for job in all_jobs
-                if job.get("application_status") != "Closed"
-                and int(job["id"]) not in verification_reasons
-            ]
-        )
-        near_misses = sorted(
-            [
-                job
-                for job in all_jobs
-                if job.get("application_status") != "Closed"
-                and int(job["id"]) not in verification_reasons
-                and _effective_match_score(job) is not None
-            ],
-            key=lambda job: int(_effective_match_score(job) or 0),
-            reverse=True,
-        )[20:30]
         if sort == "match":
             matching_jobs.sort(
                 key=lambda job: (
@@ -294,9 +312,6 @@ def create_app() -> Flask:
             closed_job_count=closed_job_count,
             verification_job_count=verification_job_count,
             total_jobs=job_count(),
-            priority_queue=priority_queue,
-            skill_gaps=skill_gap_summary(),
-            near_misses=near_misses,
             roles=distinct_values("role_query"),
             locations=distinct_values("location"),
             companies=distinct_values("company"),
@@ -378,7 +393,7 @@ def create_app() -> Flask:
             message = f"Scored {completed} job(s). Use Best resume match first to prioritize them."
         return redirect(
             url_for(
-                "index",
+                "browse_jobs",
                 role=role,
                 location=location,
                 company=company,
@@ -392,6 +407,32 @@ def create_app() -> Flask:
                 message=message,
             )
         )
+
+    @app.post("/jobs/<int:job_id>/quick-status")
+    def quick_update_pipeline(job_id: int):
+        application_status = request.form.get("application_status", "").strip()
+        if application_status not in {"Tailor Resume", "Applied", "Not pursuing"}:
+            return redirect(url_for("index", message="Choose a valid Inbox action."))
+        job = fetch_job(job_id)
+        if job is None:
+            return redirect(url_for("index", message="That job is no longer available."))
+        applied_date = str(job.get("applied_date") or "")
+        if application_status == "Applied" and not applied_date:
+            applied_date = date.today().isoformat()
+        update_job_pipeline(
+            job_id,
+            application_status,
+            applied_date,
+            str(job.get("application_link") or ""),
+            str(job.get("application_notes") or ""),
+            str(job.get("follow_up_date") or ""),
+        )
+        labels = {
+            "Tailor Resume": "Moved to Tailor Resume.",
+            "Applied": "Marked as applied.",
+            "Not pursuing": "Removed from your active Inbox.",
+        }
+        return redirect(url_for("index", message=labels[application_status]))
 
     @app.get("/operations")
     def operations():

@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Job Tracker</title>
+    <title>Browse Jobs · Job Tracker</title>
     <style>
       :root {
         --bg: #f3efe8;
@@ -230,12 +230,13 @@
       <section class="hero">
         <div class="topbar">
           <div>
-            <h1>Entry-Level Job Tracker</h1>
-            <p class="subtitle">Daily collection of new Software Engineer and AI/ML Engineer jobs in the USA, plus browser-assisted LinkedIn review imports.</p>
+            <h1>Browse Jobs</h1>
+            <p class="subtitle">Search your complete job radar when you want to explore beyond today’s decisions.</p>
           </div>
           <div class="actions">
+            <a class="link-button" href="/">Inbox</a>
             <a class="link-button" href="/resumes">Resume Library</a>
-            <a class="link-button" href="/linkedin-review">LinkedIn Review Mode</a>
+            <a class="link-button" href="/linkedin-review">Import Jobs</a>
             <a class="link-button" href="/operations">Operations</a>
           </div>
         </div>
@@ -317,14 +318,14 @@
 
           <div class="actions">
             <button type="submit">Apply Filters</button>
-            <a class="link-button" href="/">Reset</a>
+            <a class="link-button" href="/jobs">Reset</a>
             {% if showing_closed %}
-            <a class="link-button" href="/">Active Job Radar</a>
+            <a class="link-button" href="/jobs">Active Job Radar</a>
             {% elif showing_verification %}
-            <a class="link-button" href="/">Active Job Radar</a>
+            <a class="link-button" href="/jobs">Active Job Radar</a>
             {% else %}
-            <a class="link-button" href="/?view=closed">No Longer Accepting Applications ({{ closed_job_count }})</a>
-            <a class="link-button" href="/?view=verification">Needs Verification ({{ verification_job_count }})</a>
+            <a class="link-button" href="/jobs?view=closed">No Longer Accepting Applications ({{ closed_job_count }})</a>
+            <a class="link-button" href="/jobs?view=verification">Needs Verification ({{ verification_job_count }})</a>
             {% endif %}
           </div>
         </form>
@@ -350,47 +351,6 @@
         <div class="notice">{{ radar_message }}</div>
         {% endif %}
         <p class="visa-note">Visa assessments distinguish explicit posting language from FY2025 employer H-1B filing history. Historical filings do not guarantee sponsorship for a particular opening; “Unclear” is not the same as “No.”</p>
-      </section>
-
-      <section class="priority-queue">
-        <h2>Today’s Priority Queue</h2>
-        <p class="queue-subtitle">Top fresh jobs with a saved resume score, no hard no, and an actionable pipeline status.</p>
-        {% if priority_queue %}
-        <div class="queue-grid">
-          {% for job in priority_queue %}
-          <article class="queue-item">
-            <h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3>
-            <p>{{ job.company }} · {{ job.location }}</p>
-            <p><span class="queue-score">{{ job.best_match_score }}/100 match</span> · {{ job.best_match_source }} · {{ job.posting_date|relative_time }}</p>
-            <p>{{ job.application_status }} · <a href="/jobs/{{ job.id }}">Open and act</a></p>
-          </article>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty">No scored, actionable fresh jobs yet. Upload a resume and score the fresh radar to populate this queue.</div>
-        {% endif %}
-      </section>
-
-      <section class="priority-queue">
-        <h2>Skill Gaps to Prioritize</h2>
-        <p class="queue-subtitle">Most frequent missing skills across your latest Gemini resume matches.</p>
-        {% if skill_gaps %}
-        <div class="queue-grid">
-          {% for item in skill_gaps %}
-          <article class="queue-item"><strong>{{ item.skill }}</strong><p>Missing in {{ item.count }} recent match{{ 'es' if item.count != 1 else '' }}</p></article>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty">Compare a resume with a few jobs to see your personalized skill-gap trends.</div>
-        {% endif %}
-      </section>
-
-      <section class="priority-queue">
-        <h2>Near-Miss Review</h2>
-        <p class="queue-subtitle">Ranks 21–30 by current match score. Review these weekly to tune your scoring assumptions.</p>
-        {% if near_misses %}
-        <div class="queue-grid">{% for job in near_misses %}<article class="queue-item"><h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3><p>{{ job.company }} · {{ job.local_match_score }}/100 local score</p></article>{% endfor %}</div>
-        {% else %}<div class="empty">More locally scored active jobs are needed to show near misses.</div>{% endif %}
       </section>
 
       <section class="table-card">
@@ -478,11 +438,11 @@
         {% if total_pages > 1 %}
         <div class="actions pagination">
           {% if page > 1 %}
-          <a class="link-button" href="{{ url_for('index', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page - 1) }}">Previous</a>
+          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page - 1) }}">Previous</a>
           {% endif %}
           <span>Page {{ page }} of {{ total_pages }}</span>
           {% if page < total_pages %}
-          <a class="link-button" href="{{ url_for('index', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page + 1) }}">Next</a>
+          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page + 1) }}">Next</a>
           {% endif %}
         </div>
         {% endif %}
