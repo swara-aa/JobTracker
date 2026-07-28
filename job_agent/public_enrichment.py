@@ -185,10 +185,6 @@ def _capture_descriptions(
                 description = str(captured.get("description") or "")
                 metadata = captured.get("metadata") if isinstance(captured.get("metadata"), dict) else {}
                 updated_ids = save_linkedin_public_capture(str(job["link"]), description, metadata)
-                if updated_ids:
-                    from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
-
-                    enqueue_gemini_resume_comparisons(updated_ids)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not enrich job %s from its public page: %s", job_id, exc)
 

@@ -373,6 +373,20 @@
           {% if gemini_status.last_error %}<br>Latest error: {{ gemini_status.last_error }}{% endif %}
         </div>
         {% endif %}
+        {% if gemini_batch_status.active %}
+        <div class="notice" data-gemini-batch-progress>
+          <strong>Gemini Batch scoring</strong><br>
+          {{ gemini_batch_status.message }} · {{ gemini_batch_status.total }} submitted
+          {% if gemini_batch_status.provider_state %}<br>Provider status: {{ gemini_batch_status.provider_state }}{% endif %}
+        </div>
+        {% else %}
+        <form class="actions" method="post" action="/jobs/submit-gemini-batch">
+          <button type="submit">Submit described jobs to Gemini Batch</button>
+        </form>
+        {% if gemini_batch_status.completed %}
+        <div class="notice">Last Gemini batch: {{ gemini_batch_status.completed }} imported · {{ gemini_batch_status.failed }} failed.</div>
+        {% endif %}
+        {% endif %}
         {% if import_message %}
         <div class="notice">{{ import_message }}</div>
         {% endif %}
@@ -521,7 +535,7 @@
         {% endif %}
       </section>
     </main>
-    {% if overnight_status.running or gemini_status.running %}
+    {% if overnight_status.running or gemini_status.running or gemini_batch_status.active %}
     <script>setTimeout(() => window.location.reload(), 5000);</script>
     {% endif %}
   </body>

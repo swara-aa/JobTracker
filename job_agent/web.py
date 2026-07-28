@@ -272,9 +272,11 @@ def create_app() -> Flask:
         )[20:30]
         from job_agent.public_enrichment import overnight_public_backfill_status
         from job_agent.gemini_queue import gemini_queue_status
+        from job_agent.gemini_batch import batch_status
 
         overnight_status = overnight_public_backfill_status()
         gemini_status = gemini_queue_status()
+        gemini_batch_status = batch_status(refresh=True)
         if sort == "match":
             matching_jobs.sort(
                 key=lambda job: (
@@ -323,6 +325,7 @@ def create_app() -> Flask:
             radar_message=radar_message,
             overnight_status=overnight_status,
             gemini_status=gemini_status,
+            gemini_batch_status=gemini_batch_status,
         )
 
     @app.post("/jobs/score-radar")
@@ -400,6 +403,16 @@ def create_app() -> Flask:
             )
         )
 
+    @app.post("/jobs/submit-gemini-batch")
+    def submit_gemini_batch():
+        from job_agent.gemini_batch import submit_gemini_resume_batch
+
+        try:
+            state = submit_gemini_resume_batch()
+            return redirect(url_for("index", message=str(state["message"])))
+        except Exception as exc:  # noqa: BLE001
+            return redirect(url_for("index", message=str(exc)))
+
     @app.post("/jobs/local-score-all")
     def local_score_all_jobs():
         from job_agent.local_scoring import score_all_jobs_locally
@@ -459,10 +472,8 @@ def create_app() -> Flask:
                     saved = save_jobs(jobs)
                     if saved:
                         new_links = [job.link for job in jobs if job.link not in existing_links]
-                        from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
                         from job_agent.public_enrichment import start_overnight_public_backfill
 
-                        enqueue_gemini_resume_comparisons(job_ids_for_links(new_links))
                         start_overnight_public_backfill()
                     if request.form.get("capture_mode") == "bookmark":
                         return redirect(
@@ -485,10 +496,8 @@ def create_app() -> Flask:
                     )
                     saved = save_jobs([job])
                     if saved:
-                        from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
                         from job_agent.public_enrichment import start_overnight_public_backfill
 
-                        enqueue_gemini_resume_comparisons(job_ids_for_links([job.link]))
                         start_overnight_public_backfill()
                         message = "Saved 1 job to the tracker."
                     else:
@@ -684,10 +693,6 @@ def create_app() -> Flask:
             new_links = [job.link for job in jobs if job.link not in existing_links]
             from job_agent.public_enrichment import start_overnight_public_backfill
 
-            if saved:
-                from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
-
-                enqueue_gemini_resume_comparisons(job_ids_for_links(new_links))
             capture_status = start_overnight_public_backfill() if saved else None
             return jsonify(
                 {
@@ -710,14 +715,11 @@ def create_app() -> Flask:
             if not isinstance(items, list):
                 raise ValueError("Expected a jobs array.")
             updated_job_ids = save_linkedin_descriptions(items)
-            from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
-
-            queued = enqueue_gemini_resume_comparisons(updated_job_ids)
             return jsonify(
                 {
                     "captured": len(items),
                     "descriptions_saved": len(updated_job_ids),
-                    "gemini_comparisons_queued": queued,
+                    "gemini_batch_submission_required": bool(updated_job_ids),
                 }
             )
         except Exception as exc:  # noqa: BLE001
