@@ -236,6 +236,7 @@
           <div class="actions">
             <a class="link-button" href="/resumes">Resume Library</a>
             <a class="link-button" href="/linkedin-review">LinkedIn Review Mode</a>
+            <a class="link-button" href="/operations">Operations</a>
           </div>
         </div>
 
@@ -341,51 +342,6 @@
           <input type="hidden" name="view" value="{{ filters.view }}">
           <button type="submit">Gemini-score top matches (up to 30)</button>
         </form>
-        {% endif %}
-        <form class="actions" method="post" action="/jobs/local-score-all">
-          <button type="submit">Local pre-score all jobs (no Gemini)</button>
-        </form>
-        <form class="actions" method="post" action="/jobs/backfill-public-details">
-          <button type="submit">Backfill up to 15 public descriptions</button>
-        </form>
-        {% if overnight_status.running %}
-        <form class="actions" method="post" action="/jobs/stop-overnight-public-backfill">
-          <button type="submit">Stop overnight backfill</button>
-        </form>
-        <div class="notice" data-live-progress>
-          <strong>Live description-capture progress</strong><br>
-          {{ overnight_status.message }}<br>
-          Overall: {{ overnight_status.completed }} / {{ overnight_status.target }} completed · {{ overnight_status.remaining }} remaining<br>
-          Batch {{ overnight_status.batches }}/72 · {{ overnight_status.queued }} queued · {{ overnight_status.pending }} pending · {{ overnight_status.captured }} descriptions captured · {{ overnight_status.unavailable }} unavailable
-          {% if overnight_status.current_job %}<br>Current job: {{ overnight_status.current_job }}{% endif %}
-        </div>
-        {% else %}
-        <form class="actions" method="post" action="/jobs/start-overnight-public-backfill">
-          <button type="submit">Start safe overnight description backfill</button>
-        </form>
-        <p class="visa-note">Runs up to 12 hours: 60 public pages every 10 minutes, with an 8-second delay per page. Keep Flask running overnight.</p>
-        {% endif %}
-        {% if gemini_status.running %}
-        <div class="notice" data-gemini-progress>
-          <strong>Live Gemini resume scoring</strong><br>
-          {{ gemini_status.completed }} completed · {{ gemini_status.pending }} pending · {{ gemini_status.failed }} failed
-          {% if gemini_status.current_job_id %}<br>Current job ID: {{ gemini_status.current_job_id }}{% endif %}
-          {% if gemini_status.last_error %}<br>Latest error: {{ gemini_status.last_error }}{% endif %}
-        </div>
-        {% endif %}
-        {% if gemini_batch_status.active %}
-        <div class="notice" data-gemini-batch-progress>
-          <strong>Gemini Batch scoring</strong><br>
-          {{ gemini_batch_status.message }} · {{ gemini_batch_status.total }} submitted
-          {% if gemini_batch_status.provider_state %}<br>Provider status: {{ gemini_batch_status.provider_state }}{% endif %}
-        </div>
-        {% else %}
-        <form class="actions" method="post" action="/jobs/submit-gemini-batch">
-          <button type="submit">Submit described jobs to Gemini Batch</button>
-        </form>
-        {% if gemini_batch_status.completed %}
-        <div class="notice">Last Gemini batch: {{ gemini_batch_status.completed }} imported · {{ gemini_batch_status.failed }} failed.</div>
-        {% endif %}
         {% endif %}
         {% if import_message %}
         <div class="notice">{{ import_message }}</div>
@@ -535,8 +491,5 @@
         {% endif %}
       </section>
     </main>
-    {% if overnight_status.running or gemini_status.running or gemini_batch_status.active %}
-    <script>setTimeout(() => window.location.reload(), 5000);</script>
-    {% endif %}
   </body>
 </html>

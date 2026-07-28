@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JobTracker Operations</title>
+    <style>
+      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#5b6875; --accent:#aa3a2a; --line:#dfd5c7; }
+      * { box-sizing:border-box; } body { margin:0; color:var(--ink); background:var(--bg); font-family:Georgia, serif; }
+      main { max-width:1040px; margin:auto; padding:32px 20px 48px; } .panel { background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:24px; margin-bottom:18px; }
+      .top { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; } h1,h2 { margin:0 0 8px; } p { color:var(--muted); line-height:1.5; } .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; }
+      .metric,.card { border:1px solid var(--line); border-radius:14px; padding:16px; background:#fff; } .metric strong { display:block; font-size:1.7rem; color:var(--accent); }
+      button,a { border:0; border-radius:999px; padding:11px 16px; font:inherit; text-decoration:none; cursor:pointer; display:inline-block; margin:4px 6px 4px 0; } button { background:var(--accent); color:#fff; } a { background:#f5d9cb; color:var(--accent); }
+      .notice { background:#d8efe4; color:#1f6b52; border-radius:12px; padding:14px; margin:14px 0; } .warning { background:#fff1d6; color:#805300; border-radius:12px; padding:14px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel top">
+        <div><h1>Operations</h1><p>Collection, description capture, and AI batch controls live here—not on your job radar.</p></div>
+        <div><a href="/">Job Radar</a><a href="/resumes">Resume Library</a><a href="/linkedin-review">LinkedIn Import</a></div>
+      </section>
+      {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+      <section class="panel"><h2>Workspace Status</h2><div class="grid">
+        <div class="metric"><strong>{{ total_jobs }}</strong>saved jobs</div><div class="metric"><strong>{{ resume_count }}</strong>uploaded resumes</div>
+        <div class="metric"><strong>{{ descriptions_waiting }}</strong>descriptions waiting</div><div class="metric"><strong>{{ gemini_waiting }}</strong>jobs without Gemini matches</div>
+      </div></section>
+      <section class="panel"><h2>Gemini Batch Scoring</h2>
+        {% if not gemini_configured %}<div class="warning">Add `GEMINI_API_KEY` to `.env`, then restart Flask before submitting a batch.</div>{% endif %}
+        {% if gemini_batch_status.active %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>{{ gemini_batch_status.total }} jobs submitted{% if gemini_batch_status.provider_state %} · {{ gemini_batch_status.provider_state }}{% endif %}</div>
+        {% else %}<p>Submit described, non-closed jobs as one asynchronous Gemini Batch job. Results import automatically when this page refreshes after completion.</p><form method="post" action="/jobs/submit-gemini-batch"><button type="submit">Submit Gemini Batch</button></form>{% endif %}
+        {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
+      </section>
+      <section class="panel"><h2>Public Description Capture</h2>
+        {% if overnight_status.running %}<div class="notice"><strong>{{ overnight_status.message }}</strong><br>{{ overnight_status.completed }} complete · {{ overnight_status.remaining }} remaining · {{ overnight_status.unavailable }} unavailable</div><form method="post" action="/jobs/stop-overnight-public-backfill"><button type="submit">Stop Capture</button></form>
+        {% else %}<p>Captures public details for jobs that do not yet have a description. No Gemini calls are made.</p><form method="post" action="/jobs/start-overnight-public-backfill"><button type="submit">Start Background Capture</button></form><form method="post" action="/jobs/backfill-public-details"><button type="submit">Capture Next 15 Jobs</button></form>{% endif %}
+      </section>
+      <section class="panel"><h2>Maintenance</h2><p>Local scoring is optional and makes no network calls. Gemini Batch is the preferred AI workflow.</p><form method="post" action="/jobs/local-score-all"><button type="submit">Run Local Score Refresh</button></form></section>
+    </main>
+    {% if overnight_status.running or gemini_batch_status.active %}<script>setTimeout(() => window.location.reload(), 15000);</script>{% endif %}
+  </body>
+</html>

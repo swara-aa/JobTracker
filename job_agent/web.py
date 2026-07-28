@@ -270,13 +270,6 @@ def create_app() -> Flask:
             key=lambda job: int(_effective_match_score(job) or 0),
             reverse=True,
         )[20:30]
-        from job_agent.public_enrichment import overnight_public_backfill_status
-        from job_agent.gemini_queue import gemini_queue_status
-        from job_agent.gemini_batch import batch_status
-
-        overnight_status = overnight_public_backfill_status()
-        gemini_status = gemini_queue_status()
-        gemini_batch_status = batch_status(refresh=True)
         if sort == "match":
             matching_jobs.sort(
                 key=lambda job: (
@@ -323,9 +316,6 @@ def create_app() -> Flask:
             },
             import_message=import_message,
             radar_message=radar_message,
-            overnight_status=overnight_status,
-            gemini_status=gemini_status,
-            gemini_batch_status=gemini_batch_status,
         )
 
     @app.post("/jobs/score-radar")
@@ -403,15 +393,35 @@ def create_app() -> Flask:
             )
         )
 
+    @app.get("/operations")
+    def operations():
+        from job_agent.gemini_batch import batch_status
+        from job_agent.gemini_queue import gemini_queue_status
+        from job_agent.public_enrichment import overnight_public_backfill_status
+        from job_agent.storage import job_ids_without_gemini_match, public_description_missing_count
+
+        return render_template(
+            "operations.html",
+            total_jobs=job_count(),
+            resume_count=len(fetch_resumes()),
+            descriptions_waiting=public_description_missing_count(),
+            gemini_waiting=len(job_ids_without_gemini_match()),
+            gemini_configured=bool(get_user_setting("GEMINI_API_KEY")),
+            overnight_status=overnight_public_backfill_status(),
+            gemini_status=gemini_queue_status(),
+            gemini_batch_status=batch_status(refresh=True),
+            message=request.args.get("message", "").strip(),
+        )
+
     @app.post("/jobs/submit-gemini-batch")
     def submit_gemini_batch():
         from job_agent.gemini_batch import submit_gemini_resume_batch
 
         try:
             state = submit_gemini_resume_batch()
-            return redirect(url_for("index", message=str(state["message"])))
+            return redirect(url_for("operations", message=str(state["message"])))
         except Exception as exc:  # noqa: BLE001
-            return redirect(url_for("index", message=str(exc)))
+            return redirect(url_for("operations", message=str(exc)))
 
     @app.post("/jobs/local-score-all")
     def local_score_all_jobs():
@@ -423,9 +433,9 @@ def create_app() -> Flask:
                 f"Locally pre-scored {result['scored']} jobs against {result['resumes']} resume(s). "
                 "No Gemini or network calls were used."
             )
-            return redirect(url_for("index", sort="match", message=message))
+            return redirect(url_for("operations", message=message))
         except Exception as exc:  # noqa: BLE001
-            return redirect(url_for("index", message=str(exc)))
+            return redirect(url_for("operations", message=str(exc)))
 
     @app.post("/jobs/backfill-public-details")
     def backfill_public_details():
@@ -439,21 +449,21 @@ def create_app() -> Flask:
             )
         else:
             message = "No eligible jobs are waiting for public description backfill."
-        return redirect(url_for("index", message=message))
+        return redirect(url_for("operations", message=message))
 
     @app.post("/jobs/start-overnight-public-backfill")
     def start_overnight_public_details_backfill():
         from job_agent.public_enrichment import start_overnight_public_backfill
 
         status = start_overnight_public_backfill()
-        return redirect(url_for("index", message=str(status["message"])))
+        return redirect(url_for("operations", message=str(status["message"])))
 
     @app.post("/jobs/stop-overnight-public-backfill")
     def stop_overnight_public_details_backfill():
         from job_agent.public_enrichment import stop_overnight_public_backfill
 
         status = stop_overnight_public_backfill()
-        return redirect(url_for("index", message=str(status["message"])))
+        return redirect(url_for("operations", message=str(status["message"])))
 
     @app.route("/linkedin-review", methods=["GET", "POST"])
     def linkedin_review():

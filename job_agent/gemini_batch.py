@@ -66,7 +66,10 @@ def batch_status(refresh: bool = False) -> dict[str, object]:
     from google import genai
 
     client = genai.Client(api_key=api_key)
-    batch = client.batches.get(name=str(state["name"]))
+    try:
+        batch = client.batches.get(name=str(state["name"]))
+    except Exception as exc:  # noqa: BLE001
+        return state | {"message": f"Could not refresh Gemini Batch status: {str(exc)[:160]}"}
     state["provider_state"] = str(getattr(batch, "state", "UNKNOWN"))
     if "SUCCEEDED" in state["provider_state"]:
         completed, failed = _import_results(client, batch)
