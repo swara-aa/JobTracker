@@ -8,6 +8,24 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
 DB_PATH = DATA_DIR / "jobs.db"
 
+
+def _load_local_env() -> None:
+    env_path = BASE_DIR / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        name, value = line.split("=", 1)
+        name = name.strip()
+        value = value.strip().strip('"').strip("'")
+        if name:
+            os.environ.setdefault(name, value)
+
+
+_load_local_env()
+
 DEFAULT_SCHEDULE_TIME = os.getenv("JOB_AGENT_SCHEDULE_TIME", "09:00")
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("JOB_AGENT_TIMEOUT_SECONDS", "20"))
 GREENHOUSE_BOARDS = os.getenv("JOB_AGENT_GREENHOUSE_BOARDS", "")
