@@ -57,7 +57,12 @@ ROLE_TERMS = {
 HARD_NO_PATTERNS = {
     "U.S. citizenship is explicitly required": r"u\.?s\.? citizenship (?:is )?required",
     "An active security clearance is explicitly required": r"(?:active|current) (?:security )?clearance (?:is )?required",
-    "The posting requires permanent work authorization without sponsorship": r"(?:no|without) (?:visa )?sponsorship(?: now or in the future)?|must (?:be )?(?:permanently )?authorized to work.*(?:without|no).*sponsorship",
+    "The posting requires permanent work authorization without sponsorship": (
+        r"(?:no|without) (?:visa )?sponsorship(?: now or in the future)?"
+        r"|(?:must be |are |is )?(?:permanently )?authorized to work.*(?:without|no).*sponsorship"
+        r"|authorized to work permanently.*without current or future sponsorship"
+        r"|work authorization that does not now or in the future require sponsorship"
+    ),
 }
 
 
@@ -142,18 +147,34 @@ def _score_resume(job: dict[str, Any], resume: dict[str, object]) -> dict[str, A
     required_text, preferred_text = required_and_preferred_text(str(job.get("description") or ""))
     required_skills = extract_skills(required_text, SKILL_TERMS) or job_skills
     preferred_skills = extract_skills(preferred_text, SKILL_TERMS).difference(required_skills)
-    skill_score = round(0.8 * _weighted_skill_score(required_skills, sorted(required_skills & resume_skills)))
-    skill_score += round(0.2 * _weighted_skill_score(preferred_skills, sorted(preferred_skills & resume_skills))) if preferred_skills else 0
+    skill_score = _weighted_skill_score(
+        required_skills,
+        sorted(required_skills & resume_skills),
+        max_points=35,
+    )
+    skill_score += (
+        _weighted_skill_score(
+            preferred_skills,
+            sorted(preferred_skills & resume_skills),
+            max_points=10,
+        )
+        if preferred_skills
+        else 0
+    )
 
-    role_score = _role_alignment_score(str(job.get("title") or ""), resume_text)
+    role_score = _role_alignment_score(str(job.get("title") or ""), job_text, resume_text)
+    qualification_score = _qualification_score(job_text, resume_text)
     overlap_score = _keyword_overlap_score(job_text, resume_text)
     evidence_score = _evidence_score(matched_skills)
     requirement_gaps, requirement_penalty = _requirement_gaps(job_text, resume_text)
     missing_items = sorted(set(missing_skills + requirement_gaps))
-    score = max(0, skill_score + role_score + overlap_score + evidence_score - requirement_penalty)
+    score = max(
+        0,
+        skill_score + role_score + qualification_score + overlap_score + evidence_score - requirement_penalty,
+    )
     semantic_score = semantic_similarity(resume_text, job_text)
     if semantic_score is not None:
-        score = round(0.6 * score + 0.4 * semantic_score)
+        score = round(0.75 * score + 0.25 * semantic_score)
     score = min(score, _score_cap(job, job_skills, matched_skills))
     return {
         "score": score,
@@ -180,15 +201,46 @@ def _job_text(job: dict[str, Any]) -> str:
     ).lower()
 
 
-def _role_alignment_score(title: str, resume_text: str) -> int:
-    title_lower = title.lower()
-    relevant_groups = [
-        terms for role, terms in ROLE_TERMS.items() if any(term in title_lower for term in terms)
-    ]
-    if not relevant_groups:
-        return 0
-    matches = sum(any(term in resume_text for term in terms) for terms in relevant_groups)
-    return round(15 * matches / len(relevant_groups))
+def _role_alignment_score(title: str, job_text: str, resume_text: str) -> int:
+    target = f"{title} {job_text[:5000]}".lower()
+    software_signals = ROLE_TERMS["software"]
+    ai_ml_signals = ROLE_TERMS["ai_ml"]
+    resume_software = (
+        "python", "java", "javascript", "react", "fastapi", "software development", "application development"
+    )
+    resume_ai_ml = (
+        "machine learning", "llm", "artificial intelligence", "model training", "data analysis"
+    )
+    score = 0
+    if any(term in target for term in software_signals) and any(term in resume_text for term in resume_software):
+        score += 13
+    if any(term in target for term in ai_ml_signals) and any(term in resume_text for term in resume_ai_ml):
+        score += 12
+    if any(term in target for term in {"data engineering", "data analyst", "data science", "analytics"}) and any(
+        term in resume_text for term in {"data analysis", "pandas", "python", "machine learning"}
+    ):
+        score += 7
+    if not score and any(term in target for term in {"technology", "technical", "engineer", "developer"}):
+        score = 7 if any(term in resume_text for term in resume_software) else 0
+    return min(25, score)
+
+
+def _qualification_score(job_text: str, resume_text: str) -> int:
+    has_bachelors = bool(re.search(r"\b(?:bachelor['’]?s|bachelor|b\.?s\.?|b\.?tech)\b", resume_text))
+    has_relevant_study = bool(
+        re.search(
+            r"\b(?:computer science|cognitive science|data science|engineering|information systems|mathematics)\b",
+            resume_text,
+        )
+    )
+    requires_degree = bool(re.search(r"\b(?:bachelor['’]?s|bachelor)\s+degree\b", job_text))
+    if requires_degree and has_bachelors and has_relevant_study:
+        return 15
+    if requires_degree and has_bachelors:
+        return 10
+    if has_bachelors and has_relevant_study:
+        return 6
+    return 0
 
 
 def _keyword_overlap_score(job_text: str, resume_text: str) -> int:
@@ -199,21 +251,26 @@ def _keyword_overlap_score(job_text: str, resume_text: str) -> int:
     return min(8, round(8 * len(job_words.intersection(resume_words)) / min(len(job_words), 80)))
 
 
-def _weighted_skill_score(job_skills: set[str], matched_skills: list[str]) -> int:
+def _weighted_skill_score(
+    job_skills: set[str],
+    matched_skills: list[str],
+    *,
+    max_points: int,
+) -> int:
     if not job_skills:
         return 0
     matched = set(matched_skills)
     total_weight = sum(0.45 if skill in FOUNDATIONAL_SKILLS else 1.0 for skill in job_skills)
     matched_weight = sum(0.45 if skill in FOUNDATIONAL_SKILLS else 1.0 for skill in matched)
-    return round(55 * matched_weight / total_weight)
+    return round(max_points * matched_weight / total_weight)
 
 
 def _evidence_score(matched_skills: list[str]) -> int:
     specialized_matches = [skill for skill in matched_skills if skill not in FOUNDATIONAL_SKILLS]
     if len(specialized_matches) >= 4:
-        return 12
+        return 8
     if len(specialized_matches) >= 2:
-        return 6
+        return 4
     return 0
 
 
