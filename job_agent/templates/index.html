@@ -370,6 +370,7 @@
           <strong>Live Gemini resume scoring</strong><br>
           {{ gemini_status.completed }} completed · {{ gemini_status.pending }} pending · {{ gemini_status.failed }} failed
           {% if gemini_status.current_job_id %}<br>Current job ID: {{ gemini_status.current_job_id }}{% endif %}
+          {% if gemini_status.last_error %}<br>Latest error: {{ gemini_status.last_error }}{% endif %}
         </div>
         {% endif %}
         {% if import_message %}

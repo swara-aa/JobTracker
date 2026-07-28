@@ -15,7 +15,14 @@ GEMINI_MATCH_DELAY_SECONDS = 8
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="gemini-resume-match")
 _pending_ids: set[int] = set()
 _lock = Lock()
-_status = {"running": False, "queued": 0, "completed": 0, "failed": 0, "current_job_id": None}
+_status = {
+    "running": False,
+    "queued": 0,
+    "completed": 0,
+    "failed": 0,
+    "current_job_id": None,
+    "last_error": "",
+}
 
 
 def enqueue_gemini_resume_comparisons(job_ids: list[int]) -> int:
@@ -54,6 +61,7 @@ def _run(job_ids: list[int]) -> None:
                 logger.warning("Gemini resume match failed for job %s: %s", job_id, exc)
                 with _lock:
                     _status["failed"] = int(_status["failed"]) + 1
+                    _status["last_error"] = str(exc).replace("\n", " ")[:300]
             time.sleep(GEMINI_MATCH_DELAY_SECONDS)
     finally:
         with _lock:
