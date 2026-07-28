@@ -8,7 +8,6 @@ import time
 import requests
 
 from job_agent.gemini_analysis import fetch_public_job_details
-from job_agent.local_scoring import score_jobs_locally
 from job_agent.storage import (
     fetch_job,
     job_ids_for_public_backfill,
@@ -187,7 +186,9 @@ def _capture_descriptions(
                 metadata = captured.get("metadata") if isinstance(captured.get("metadata"), dict) else {}
                 updated_ids = save_linkedin_public_capture(str(job["link"]), description, metadata)
                 if updated_ids:
-                    score_jobs_locally(updated_ids)
+                    from job_agent.gemini_queue import enqueue_gemini_resume_comparisons
+
+                    enqueue_gemini_resume_comparisons(updated_ids)
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Could not enrich job %s from its public page: %s", job_id, exc)
 

@@ -365,6 +365,13 @@
         </form>
         <p class="visa-note">Runs up to 12 hours: 60 public pages every 10 minutes, with an 8-second delay per page. Keep Flask running overnight.</p>
         {% endif %}
+        {% if gemini_status.running %}
+        <div class="notice" data-gemini-progress>
+          <strong>Live Gemini resume scoring</strong><br>
+          {{ gemini_status.completed }} completed · {{ gemini_status.pending }} pending · {{ gemini_status.failed }} failed
+          {% if gemini_status.current_job_id %}<br>Current job ID: {{ gemini_status.current_job_id }}{% endif %}
+        </div>
+        {% endif %}
         {% if import_message %}
         <div class="notice">{{ import_message }}</div>
         {% endif %}
@@ -513,7 +520,7 @@
         {% endif %}
       </section>
     </main>
-    {% if overnight_status.running %}
+    {% if overnight_status.running or gemini_status.running %}
     <script>setTimeout(() => window.location.reload(), 5000);</script>
     {% endif %}
   </body>
