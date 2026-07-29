@@ -3,6 +3,40 @@ const MAX_PAGE_LIMIT = 15;
 const PAGE_WAIT_MS = 1000;
 const IMPORT_TIMEOUT_MS = 10000;
 const MAX_PAGE_LOAD_RETRIES = 15;
+const SCHEDULE_ALARM = "jobTrackerDailyCollection";
+const SCHEDULE_KEY = "jobTrackerSchedule";
+const DEFAULT_SCHEDULE = {
+  enabled: false,
+  time: "08:00",
+  maxPages: 12,
+  searchUrl: "",
+  lastAttemptDate: "",
+  lastRunDate: "",
+  lastResult: "Daily collection is not enabled.",
+  warning: "",
+};
+
+chrome.runtime.onInstalled.addListener(() => {
+  ensureSchedule().then(scheduleNextAlarm);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureSchedule().then(async (schedule) => {
+    try {
+      await maybeRunMissedSchedule(schedule);
+    } catch (error) {
+      await recordScheduleResult(`Missed scheduled collection failed: ${error.message || String(error)}`);
+    }
+    await scheduleNextAlarm(await getSchedule());
+  });
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== SCHEDULE_ALARM) return;
+  runScheduledCollection(false)
+    .catch((error) => recordScheduleResult(`Scheduled collection failed: ${error.message || String(error)}`))
+    .finally(async () => scheduleNextAlarm(await getSchedule()));
+});
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   handleMessage(message)
@@ -12,17 +46,37 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 async function handleMessage(message) {
-  if (message.type === "status") return { ok: true, state: await getState() };
+  if (message.type === "status") {
+    return { ok: true, state: await getState(), schedule: await ensureSchedule() };
+  }
+  if (message.type === "saveSchedule") {
+    const schedule = await saveSchedule(message.schedule || {});
+    await scheduleNextAlarm(schedule);
+    return { ok: true, schedule };
+  }
+  if (message.type === "runScheduledNow") {
+    const state = await runScheduledCollection(true);
+    return { ok: true, state, schedule: await getSchedule() };
+  }
   if (message.type === "stop") {
     const state = await getState();
     return { ok: true, state: await saveState({ ...state, running: false, message: "Collection stopped by you." }) };
   }
   if (message.type !== "start") return { ok: false, error: "Unknown extension action." };
 
-  const maxPages = Math.min(MAX_PAGE_LIMIT, Math.max(1, Number(message.maxPages) || 12));
+  return startCollection(message.tabId, message.maxPages, "manual");
+}
+
+async function startCollection(tabId, requestedMaxPages, trigger) {
+  const currentState = await getState();
+  if (currentState.running) {
+    throw new Error("A collection is already running.");
+  }
+  const maxPages = Math.min(MAX_PAGE_LIMIT, Math.max(1, Number(requestedMaxPages) || 12));
   const state = await saveState({
     running: true,
-    tabId: message.tabId,
+    tabId,
+    trigger,
     maxPages,
     pagesVisited: 0,
     captured: 0,
@@ -146,11 +200,25 @@ async function finish(state, reason) {
     running: false,
     message: `${reason} Saved ${state.saved} new jobs from ${state.pagesVisited} page(s). Job Tracker is capturing public descriptions and local scores for ${state.queuedForEnrichment} new job(s) in the background.`,
   });
+  if (state.trigger === "scheduled") {
+    const today = localDateKey();
+    const schedule = await getSchedule();
+    await chrome.storage.local.set({
+      [SCHEDULE_KEY]: {
+        ...schedule,
+        lastRunDate: today,
+        lastResult: `Completed: saved ${state.saved} new jobs from ${state.pagesVisited} page(s).`,
+      },
+    });
+  }
 }
 
 async function stopWithError(error) {
   const state = await getState();
   await saveState({ ...state, running: false, error: error.message || String(error), message: "Collection stopped." });
+  if (state.trigger === "scheduled") {
+    await recordScheduleResult(`Scheduled collection stopped: ${error.message || String(error)}`);
+  }
 }
 
 async function getState() {
@@ -161,6 +229,135 @@ async function getState() {
 async function saveState(state) {
   await chrome.storage.session.set({ jobTrackerCollection: state });
   return state;
+}
+
+async function ensureSchedule() {
+  const stored = await getSchedule();
+  if (stored.searchUrl || stored.enabled || stored.lastResult !== DEFAULT_SCHEDULE.lastResult) {
+    return stored;
+  }
+  await chrome.storage.local.set({ [SCHEDULE_KEY]: stored });
+  return stored;
+}
+
+async function getSchedule() {
+  const stored = await chrome.storage.local.get(SCHEDULE_KEY);
+  return { ...DEFAULT_SCHEDULE, ...(stored[SCHEDULE_KEY] || {}) };
+}
+
+async function saveSchedule(input) {
+  const time = /^\d{2}:\d{2}$/.test(String(input.time || "")) ? String(input.time) : "08:00";
+  const [hour, minute] = time.split(":").map(Number);
+  if (hour > 23 || minute > 59) throw new Error("Choose a valid daily collection time.");
+  const searchUrl = normalizeSearchUrl(String(input.searchUrl || "").trim());
+  if (input.enabled && !searchUrl.startsWith("https://www.linkedin.com/jobs/")) {
+    throw new Error("Save a LinkedIn Jobs search URL before enabling the schedule.");
+  }
+  const parsedUrl = searchUrl ? new URL(searchUrl) : null;
+  const warning =
+    input.enabled && parsedUrl?.searchParams.get("f_TPR") !== "r86400"
+      ? "The saved search does not appear to use LinkedIn's Past 24 hours filter."
+      : "";
+  const existing = await getSchedule();
+  const schedule = {
+    ...existing,
+    enabled: Boolean(input.enabled),
+    time,
+    maxPages: Math.min(MAX_PAGE_LIMIT, Math.max(1, Number(input.maxPages) || 12)),
+    searchUrl,
+    warning,
+    lastResult: input.enabled ? existing.lastResult : "Daily collection is not enabled.",
+  };
+  await chrome.storage.local.set({ [SCHEDULE_KEY]: schedule });
+  return schedule;
+}
+
+async function scheduleNextAlarm(schedule) {
+  await chrome.alarms.clear(SCHEDULE_ALARM);
+  if (!schedule.enabled) return;
+  await chrome.alarms.create(SCHEDULE_ALARM, { when: nextScheduledTime(schedule.time) });
+}
+
+async function maybeRunMissedSchedule(schedule) {
+  if (!schedule.enabled) return;
+  const today = localDateKey();
+  if (schedule.lastRunDate === today || schedule.lastAttemptDate === today) return;
+  const [hour, minute] = schedule.time.split(":").map(Number);
+  const now = new Date();
+  if (now.getHours() * 60 + now.getMinutes() < hour * 60 + minute) return;
+  await runScheduledCollection(false);
+}
+
+async function runScheduledCollection(force) {
+  const schedule = await getSchedule();
+  if (!schedule.enabled && !force) throw new Error("Daily collection is not enabled.");
+  if (!schedule.searchUrl.startsWith("https://www.linkedin.com/jobs/")) {
+    throw new Error("The scheduled LinkedIn Jobs URL is missing.");
+  }
+  const today = localDateKey();
+  if (!force && (schedule.lastRunDate === today || schedule.lastAttemptDate === today)) {
+    return getState();
+  }
+  await chrome.storage.local.set({
+    [SCHEDULE_KEY]: {
+      ...schedule,
+      lastAttemptDate: today,
+      lastResult: "Opening the saved LinkedIn search...",
+    },
+  });
+  const tab = await chrome.tabs.create({ url: schedule.searchUrl, active: true });
+  await waitForTabReady(tab.id);
+  await pause(4000);
+  const result = await startCollection(tab.id, schedule.maxPages, "scheduled");
+  if (!result.ok) throw new Error(result.error || "Scheduled collection failed.");
+  return result.state;
+}
+
+async function recordScheduleResult(message) {
+  const schedule = await getSchedule();
+  await chrome.storage.local.set({ [SCHEDULE_KEY]: { ...schedule, lastResult: message } });
+}
+
+function nextScheduledTime(time) {
+  const [hour, minute] = time.split(":").map(Number);
+  const next = new Date();
+  next.setHours(hour, minute, 0, 0);
+  if (next.getTime() <= Date.now()) next.setDate(next.getDate() + 1);
+  return next.getTime();
+}
+
+function localDateKey() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function normalizeSearchUrl(value) {
+  if (!value) return "";
+  try {
+    const url = new URL(value);
+    for (const name of ["currentJobId", "start", "position", "pageNum"]) {
+      url.searchParams.delete(name);
+    }
+    return url.toString();
+  } catch {
+    return value;
+  }
+}
+
+function waitForTabReady(tabId) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 30000);
+    const listener = (updatedTabId, changeInfo) => {
+      if (updatedTabId !== tabId || changeInfo.status !== "complete") return;
+      clearTimeout(timeout);
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    };
+    chrome.tabs.onUpdated.addListener(listener);
+  });
 }
 
 function readVisibleJobsPage() {

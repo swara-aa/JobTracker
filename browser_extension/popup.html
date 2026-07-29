@@ -34,6 +34,11 @@
       #status { min-height: 42px; margin-bottom: 0; }
       label { display: block; margin: 14px 0 6px; color: var(--muted); font-size: 0.9rem; }
       input { box-sizing: border-box; width: 100%; margin-bottom: 10px; padding: 9px; border: 1px solid #d7c7b7; border-radius: 8px; font: inherit; }
+      .check-row { display: flex; align-items: center; gap: 8px; margin: 18px 0 8px; color: var(--ink); }
+      .check-row input { width: auto; margin: 0; }
+      .schedule { margin-top: 18px; padding-top: 14px; border-top: 1px solid #d7c7b7; }
+      .schedule h2 { margin: 0 0 6px; font-size: 1.05rem; }
+      .schedule-status { font-size: 0.85rem; }
       .secondary { margin-top: 9px; color: var(--ink); background: #d9c1a8; }
       .hidden { display: none; }
       .error { color: #922b21; }
@@ -48,6 +53,18 @@
     <button id="collect" type="button">Collect visible pages</button>
     <button id="stop" class="secondary hidden" type="button">Stop collection</button>
     <p id="status">Keep the local Flask app running, then start collection.</p>
+    <section class="schedule">
+      <h2>Daily automatic collection</h2>
+      <label class="check-row" for="schedule-enabled"><input id="schedule-enabled" type="checkbox"> Run once every morning</label>
+      <label for="schedule-time">Collection time</label>
+      <input id="schedule-time" type="time" value="08:00">
+      <label for="search-url">Saved LinkedIn Jobs search URL</label>
+      <input id="search-url" type="url" placeholder="https://www.linkedin.com/jobs/search-results/...">
+      <button id="use-current-url" class="secondary" type="button">Use current LinkedIn search</button>
+      <button id="save-schedule" type="button">Save daily schedule</button>
+      <button id="run-scheduled-now" class="secondary" type="button">Test scheduled collection now</button>
+      <p id="schedule-status" class="schedule-status">Daily collection is not enabled.</p>
+    </section>
     <script src="popup.js"></script>
   </body>
 </html>

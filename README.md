@@ -86,6 +86,20 @@ On Windows, use `$env:NAME="value"` for the current PowerShell session.
 
 The extension imports visible result cards and can advance through result pages after you start it. Newly imported jobs are locally pre-scored immediately; public description capture continues in the background.
 
+### Daily LinkedIn collection on macOS
+
+1. Reload **Job Tracker Helper** from `chrome://extensions` after updating the project.
+2. Open the LinkedIn Jobs search filtered to **Past 24 hours**.
+3. Open the extension, choose **Use current LinkedIn search**, select the time and page limit, enable **Run once every morning**, and save.
+4. Test once with **Test scheduled collection now**.
+5. Install the macOS launcher:
+
+```bash
+./scripts/install_macos_daily_automation.sh
+```
+
+The installed LaunchAgent opens Chrome and starts Flask at 7:55 AM. macOS briefly uses Terminal to start the local Flask process because background agents cannot directly read projects stored under Desktop. The extension opens the saved search at its configured time and runs at most once per calendar day. Chrome must remain signed in to LinkedIn. Collection stops safely if the page shows a login, challenge, missing cards, or inaccessible results; it does not bypass access controls.
+
 ## Daily Collection
 
 ```bash
