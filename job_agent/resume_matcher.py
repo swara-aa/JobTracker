@@ -238,15 +238,15 @@ def _validate_rankings(rankings: list[dict[str, Any]], expected_ids: set[int]) -
     if received_ids != expected_ids or len(rankings) != len(expected_ids):
         raise ValueError("Gemini did not return exactly one result for every resume.")
     for item in rankings:
-        score = item.get("score")
-        if not isinstance(score, int) or not 0 <= score <= 100:
-            raise ValueError("Gemini returned an invalid resume match score.")
         if not isinstance(item.get("hard_no"), bool):
             raise ValueError("Gemini returned an invalid hard-no assessment.")
         if not isinstance(item.get("hard_no_reasons"), list):
             raise ValueError("Gemini returned invalid hard-no reasons.")
-        if item["hard_no"] and score != 0:
-            raise ValueError("A hard-no resume match must have a score of zero.")
+        if item["hard_no"]:
+            item["score"] = 0
+        score = item.get("score")
+        if not isinstance(score, int) or not 0 <= score <= 100:
+            raise ValueError("Gemini returned an invalid resume match score.")
 
 
 def _save_job_description(job_id: int, description: str) -> None:
