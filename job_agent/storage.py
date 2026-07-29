@@ -177,6 +177,10 @@ def ensure_database() -> None:
 
 
 def save_jobs(jobs: Iterable[JobPosting]) -> int:
+    return len(save_jobs_with_ids(jobs))
+
+
+def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
     ensure_database()
     saved = 0
     saved_job_ids: list[int] = []
@@ -228,7 +232,7 @@ def save_jobs(jobs: Iterable[JobPosting]) -> int:
         except Exception as exc:  # noqa: BLE001
             logger.warning("Saved jobs but could not update visa assessments: %s", exc)
 
-    return saved
+    return saved_job_ids
 
 
 def _matches_existing_cross_source_posting(

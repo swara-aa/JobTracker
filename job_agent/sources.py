@@ -178,11 +178,21 @@ class GreenhouseSource(BaseSource):
                 location = str((item.get("location") or {}).get("name") or "").strip()
                 link = str(item.get("absolute_url") or "").strip()
                 updated_at = str(item.get("updated_at") or "").strip()
+                description = _html_to_text(str(item.get("content") or ""))
                 if not all([title, location, link, updated_at]):
                     continue
                 posted_at = _parse_iso_datetime(updated_at)
                 if self._keep(role_query, title, location, posted_at):
-                    yield JobPosting(self.name, role_query, title, company, location, posted_at, link)
+                    yield JobPosting(
+                        self.name,
+                        role_query,
+                        title,
+                        company,
+                        location,
+                        posted_at,
+                        link,
+                        description=description,
+                    )
 
 
 class LeverSource(BaseSource):
@@ -204,11 +214,24 @@ class LeverSource(BaseSource):
                 location = str((item.get("categories") or {}).get("location") or "").strip()
                 link = str(item.get("hostedUrl") or "").strip()
                 created_ms = item.get("createdAt")
+                description = str(item.get("descriptionPlain") or "").strip()
+                if not description:
+                    description = _html_to_text(str(item.get("description") or ""))
                 if not all([title, location, link, created_ms]):
                     continue
                 posted_at = datetime.fromtimestamp(int(created_ms) / 1000, tz=timezone.utc)
                 if self._keep(role_query, title, location, posted_at):
-                    yield JobPosting(self.name, role_query, title, company, location, posted_at, link)
+                    yield JobPosting(
+                        self.name,
+                        role_query,
+                        title,
+                        company,
+                        location,
+                        posted_at,
+                        link,
+                        workplace_type="Remote" if "remote" in location.lower() else "",
+                        description=description,
+                    )
 
 
 def get_sources() -> list[BaseSource]:
@@ -261,3 +284,7 @@ def _extract_remote_ok_location(description_html: str) -> str:
             return candidate
 
     return text[:120] or "Unknown"
+
+
+def _html_to_text(value: str) -> str:
+    return BeautifulSoup(value, "html.parser").get_text(" ", strip=True)

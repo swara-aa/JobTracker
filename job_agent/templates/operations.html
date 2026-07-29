@@ -25,6 +25,15 @@
         <div class="metric"><strong>{{ total_jobs }}</strong>saved jobs</div><div class="metric"><strong>{{ resume_count }}</strong>uploaded resumes</div>
         <div class="metric"><strong>{{ descriptions_waiting }}</strong>descriptions waiting</div><div class="metric"><strong>{{ gemini_waiting }}</strong>jobs without Gemini matches</div>
       </div></section>
+      <section class="panel"><h2>Public Company Boards</h2>
+        <p>Uses official public Greenhouse and Lever job-board APIs. New jobs retain their description, receive a local score, and are submitted to Gemini Batch when no other batch is active.</p>
+        <div class="grid">
+          <article class="card"><strong>Greenhouse</strong><p>{% if greenhouse_boards %}{% for board, company in greenhouse_boards %}{{ company }} ({{ board }}){% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}No boards configured.{% endif %}</p></article>
+          <article class="card"><strong>Lever</strong><p>{% if lever_sites %}{% for site, company in lever_sites %}{{ company }} ({{ site }}){% if not loop.last %}<br>{% endif %}{% endfor %}{% else %}No boards configured.{% endif %}</p></article>
+        </div>
+        {% if not greenhouse_boards and not lever_sites %}<div class="warning">Add public board tokens to `.env` first: `JOB_AGENT_GREENHOUSE_BOARDS=token:Company` and/or `JOB_AGENT_LEVER_SITES=token:Company`, then restart Flask.</div>{% endif %}
+        <form method="post" action="/operations/collect-public-boards"><button type="submit">Collect Public Boards Now</button></form>
+      </section>
       <section class="panel"><h2>Gemini Batch Scoring</h2>
         {% if not gemini_configured %}<div class="warning">Add `GEMINI_API_KEY` to `.env`, then restart Flask before submitting a batch.</div>{% endif %}
         {% if gemini_batch_status.active %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>{{ gemini_batch_status.total }} jobs submitted{% if gemini_batch_status.provider_state %} · {{ gemini_batch_status.provider_state }}{% endif %}</div>

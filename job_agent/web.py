@@ -11,7 +11,12 @@ from job_agent.linkedin_review import (
     linkedin_console_snippet,
     parse_linkedin_json,
 )
-from job_agent.config import get_user_setting
+from job_agent.config import (
+    GREENHOUSE_BOARDS,
+    LEVER_SITES,
+    configured_boards,
+    get_user_setting,
+)
 from job_agent.posting_quality import verification_reasons_by_job
 from job_agent.storage import (
     delete_resume,
@@ -451,8 +456,21 @@ def create_app() -> Flask:
             overnight_status=overnight_public_backfill_status(),
             gemini_status=gemini_queue_status(),
             gemini_batch_status=batch_status(refresh=True),
+            greenhouse_boards=configured_boards(GREENHOUSE_BOARDS),
+            lever_sites=configured_boards(LEVER_SITES),
             message=request.args.get("message", "").strip(),
         )
+
+    @app.post("/operations/collect-public-boards")
+    def collect_public_boards():
+        from job_agent.collector import run_collection_and_prepare_matches
+
+        result = run_collection_and_prepare_matches()
+        message = (
+            f"Saved {result['saved']} new public-board job(s); "
+            f"locally scored {result['local_scored']}. {result['gemini_batch_message']}"
+        )
+        return redirect(url_for("operations", message=message))
 
     @app.post("/jobs/submit-gemini-batch")
     def submit_gemini_batch():

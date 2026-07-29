@@ -66,9 +66,9 @@ export GEMINI_API_KEY="your-key"
 # Optional local semantic scoring (downloads the MiniLM model once)
 export JOB_AGENT_ENABLE_LOCAL_EMBEDDINGS=1
 
-# Optional public company boards: board-or-site-token:Display Name
-export JOB_AGENT_GREENHOUSE_BOARDS="openai:OpenAI"
-export JOB_AGENT_LEVER_SITES="example:Example Company"
+# Optional public company boards: comma-separated board-or-site-token:Display Name
+export JOB_AGENT_GREENHOUSE_BOARDS="board-token:Company Name,another-token:Another Company"
+export JOB_AGENT_LEVER_SITES="site-token:Company Name,another-site:Another Company"
 
 # Optional daily SMTP digest
 export JOB_AGENT_SMTP_HOST="smtp.example.com"
@@ -94,6 +94,11 @@ python run_scheduler.py       # collect once now, then daily
 ```
 
 Set `JOB_AGENT_SCHEDULE_TIME` (for example `09:00`) to choose the daily schedule.
+
+Greenhouse and Lever collection use only the official public board APIs configured above. Each
+newly saved board job keeps its API-provided description, gets a local score, and is submitted to
+Gemini Batch for resume matching when Gemini is configured and no other batch is active. You can
+also run the same workflow from **Operations → Collect Public Boards Now**.
 
 ## Project Layout
 
