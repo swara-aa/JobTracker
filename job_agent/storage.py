@@ -341,6 +341,24 @@ def job_ids_without_gemini_match() -> list[int]:
     return [int(row[0]) for row in rows]
 
 
+def described_job_ids_without_gemini_match() -> list[int]:
+    ensure_database()
+    with sqlite3.connect(DB_PATH) as connection:
+        rows = connection.execute(
+            """
+            SELECT jobs.id
+            FROM jobs
+            LEFT JOIN resume_job_matches AS matches
+              ON matches.job_id = jobs.id AND matches.is_best = 1
+            WHERE matches.job_id IS NULL
+              AND jobs.application_status != 'Closed'
+              AND trim(jobs.description) != ''
+            ORDER BY jobs.posting_date DESC, jobs.id DESC
+            """
+        ).fetchall()
+    return [int(row[0]) for row in rows]
+
+
 def save_linkedin_descriptions(items: Iterable[dict[str, str]]) -> list[int]:
     ensure_database()
     updated_job_ids: list[int] = []

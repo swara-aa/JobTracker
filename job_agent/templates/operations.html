@@ -21,6 +21,16 @@
         <div><a href="/">Job Radar</a><a href="/resumes">Resume Library</a><a href="/linkedin-review">LinkedIn Import</a></div>
       </section>
       {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+      <section class="panel"><h2>Automatic Pipeline</h2>
+        <div class="notice"><strong>{{ automation_status.phase|replace('_', ' ')|title }}</strong><br>{{ automation_status.message }}</div>
+        <div class="grid">
+          <div class="metric"><strong>{{ automation_status.public_jobs_saved or 0 }}</strong>public-board jobs in latest run</div>
+          <div class="metric"><strong>{{ automation_status.linkedin_jobs_collected or 0 }}</strong>LinkedIn jobs in latest run</div>
+          <div class="metric"><strong>{{ automation_status.batch_submissions or 0 }}/3</strong>Gemini batches submitted today</div>
+        </div>
+        <p>Public boards run daily at {{ automation_public_collection_time }}. LinkedIn description capture begins two minutes after the extension finishes. Gemini batches are monitored and imported automatically every five minutes.</p>
+        {% if automation_status.last_error %}<div class="warning">{{ automation_status.last_error }}</div>{% endif %}
+      </section>
       <section class="panel"><h2>Workspace Status</h2><div class="grid">
         <div class="metric"><strong>{{ total_jobs }}</strong>saved jobs</div><div class="metric"><strong>{{ resume_count }}</strong>uploaded resumes</div>
         <div class="metric"><strong>{{ descriptions_waiting }}</strong>descriptions waiting</div><div class="metric"><strong>{{ gemini_waiting }}</strong>jobs without Gemini matches</div>
@@ -37,7 +47,7 @@
       <section class="panel"><h2>Gemini Batch Scoring</h2>
         {% if not gemini_configured %}<div class="warning">Add `GEMINI_API_KEY` to `.env`, then restart Flask before submitting a batch.</div>{% endif %}
         {% if gemini_batch_status.active %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>{{ gemini_batch_status.total }} jobs submitted{% if gemini_batch_status.provider_state %} · {{ gemini_batch_status.provider_state }}{% endif %}</div>
-        {% else %}<p>Submit described, non-closed jobs as one asynchronous Gemini Batch job. Results import automatically when this page refreshes after completion.</p><form method="post" action="/jobs/submit-gemini-batch"><button type="submit">Submit Gemini Batch</button></form>{% endif %}
+        {% else %}<p>Described, non-closed jobs are submitted as one asynchronous Gemini Batch job after collection settles. Results are monitored and imported automatically; this manual action is only a fallback.</p><form method="post" action="/jobs/submit-gemini-batch"><button type="submit">Submit Gemini Batch Now</button></form>{% endif %}
         {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
       </section>
       <section class="panel"><h2>Public Description Capture</h2>
@@ -46,6 +56,6 @@
       </section>
       <section class="panel"><h2>Maintenance</h2><p>Local scoring is optional and makes no network calls. Gemini Batch is the preferred AI workflow.</p><form method="post" action="/jobs/local-score-all"><button type="submit">Run Local Score Refresh</button></form></section>
     </main>
-    {% if overnight_status.running or gemini_batch_status.active %}<script>setTimeout(() => window.location.reload(), 15000);</script>{% endif %}
+    <script>setTimeout(() => window.location.reload(), 30000);</script>
   </body>
 </html>

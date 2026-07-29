@@ -84,7 +84,7 @@ On Windows, use `$env:NAME="value"` for the current PowerShell session.
 3. Choose **Load unpacked** and select `browser_extension/`.
 4. Open a LinkedIn Jobs results page and start collection from **Job Tracker Helper**.
 
-The extension imports visible result cards and can advance through result pages after you start it. Newly imported jobs are locally pre-scored immediately; public description capture continues in the background.
+The extension imports visible result cards and advances through result pages after you start it. It waits 10 seconds between pages. Description capture is deliberately deferred until the full collection finishes so LinkedIn pagination and public-page requests do not overlap.
 
 ### Daily LinkedIn collection on macOS
 
@@ -100,6 +100,8 @@ The extension imports visible result cards and can advance through result pages 
 
 The installed LaunchAgent opens Chrome and starts Flask at 7:55 AM. macOS briefly uses Terminal to start the local Flask process because background agents cannot directly read projects stored under Desktop. The extension opens the saved search at its configured time and runs at most once per calendar day. Chrome must remain signed in to LinkedIn. Collection stops safely if the page shows a login, challenge, missing cards, or inaccessible results; it does not bypass access controls.
 
+When the last LinkedIn results page finishes, the extension notifies Flask. The automation coordinator waits two minutes, starts paced public-description capture for jobs still missing descriptions, locally refreshes their skills and visa language, then submits all described unmatched jobs as one Gemini Batch. It checks the batch every five minutes and imports completed scores without requiring the Operations page to be open.
+
 ## Daily Collection
 
 ```bash
@@ -107,12 +109,12 @@ python run_collector.py       # collect once
 python run_scheduler.py       # collect once now, then daily
 ```
 
-Set `JOB_AGENT_SCHEDULE_TIME` (for example `09:00`) to choose the daily schedule.
+Set `JOB_AGENT_SCHEDULE_TIME` (for example `09:00`) for the standalone scheduler. When Flask is kept running by the macOS automation, `JOB_AGENT_PUBLIC_COLLECTION_TIME` (default `07:56`) controls the built-in daily public-board run.
 
 Greenhouse and Lever collection use only the official public board APIs configured above. Each
-newly saved board job keeps its API-provided description, gets a local score, and is submitted to
-Gemini Batch for resume matching when Gemini is configured and no other batch is active. You can
-also run the same workflow from **Operations → Collect Public Boards Now**.
+newly saved board job keeps its API-provided description and gets a local score. Gemini submission
+is deferred up to 15 minutes so the public-board and LinkedIn morning collections can be combined
+into one batch. You can also run the same workflow from **Operations → Collect Public Boards Now**.
 
 ## Project Layout
 

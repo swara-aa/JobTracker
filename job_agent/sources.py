@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
-import email.utils
 from typing import Iterable
 from urllib.parse import quote
-import xml.etree.ElementTree as ET
 
 import requests
 from bs4 import BeautifulSoup
@@ -42,25 +40,32 @@ class BaseSource(ABC):
 
 class RemoteOkSource(BaseSource):
     name = "RemoteOK"
-    base_url = "https://remoteok.com/remote-{query}-jobs.rss"
+    api_url = "https://remoteok.com/api"
 
     def fetch(self, role_query: str) -> Iterable[JobPosting]:
-        slug = role_query.lower().replace("/", "-").replace(" ", "-")
         response = self.session.get(
-            self.base_url.format(query=quote(slug)),
+            self.api_url,
             timeout=config.REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
+        payload = response.json()
 
-        root = ET.fromstring(response.content)
-        items = root.findall(".//item")
-
-        for item in items:
-            title = _xml_text(item, "title")
-            link = _xml_text(item, "link")
-            company = _xml_text(item, "author") or "Unknown"
-            location = _extract_remote_ok_location(_xml_text(item, "description"))
-            posted_at = _parse_rfc2822(_xml_text(item, "pubDate"))
+        for item in payload if isinstance(payload, list) else []:
+            if not isinstance(item, dict) or not item.get("id"):
+                continue
+            title = str(item.get("position") or "").strip()
+            link = str(item.get("url") or "").strip()
+            company = str(item.get("company") or "").strip() or "Unknown"
+            location = str(item.get("location") or "").strip() or "Worldwide"
+            description = _html_to_text(str(item.get("description") or ""))
+            posted_value = str(item.get("date") or item.get("epoch") or "").strip()
+            if not all([title, link, posted_value]):
+                continue
+            posted_at = (
+                datetime.fromtimestamp(int(posted_value), tz=timezone.utc)
+                if posted_value.isdigit()
+                else _parse_iso_datetime(posted_value)
+            )
 
             if not self._keep(role_query, title, location, posted_at):
                 continue
@@ -73,6 +78,8 @@ class RemoteOkSource(BaseSource):
                 location=location,
                 posting_date=posted_at,
                 link=link,
+                workplace_type="Remote",
+                description=description,
             )
 
 
@@ -249,41 +256,12 @@ def get_sources() -> list[BaseSource]:
     return sources
 
 
-def _xml_text(node: ET.Element, tag: str) -> str:
-    child = node.find(tag)
-    return child.text.strip() if child is not None and child.text else ""
-
-
-def _parse_rfc2822(value: str) -> datetime:
-    parsed = email.utils.parsedate_to_datetime(value)
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
 def _parse_iso_datetime(value: str) -> datetime:
     normalized = value.replace("Z", "+00:00")
     parsed = datetime.fromisoformat(normalized)
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
-
-
-def _extract_remote_ok_location(description_html: str) -> str:
-    soup = BeautifulSoup(description_html, "html.parser")
-    text = soup.get_text(" ", strip=True)
-
-    for candidate in [
-        "United States",
-        "USA Only",
-        "US",
-        "U.S.",
-        "North America",
-    ]:
-        if candidate.lower() in text.lower():
-            return candidate
-
-    return text[:120] or "Unknown"
 
 
 def _html_to_text(value: str) -> str:

@@ -1,4 +1,5 @@
-const IMPORT_URL = "http://127.0.0.1:5000/api/linkedin/import";
+const IMPORT_URL = "http://127.0.0.1:5000/api/linkedin/import?defer_enrichment=1";
+const FINALIZE_URL = "http://127.0.0.1:5000/api/linkedin/finalize-collection";
 const MAX_PAGE_LIMIT = 15;
 const PAGE_LOAD_RETRY_MS = 1000;
 const NEXT_PAGE_WAIT_MS = 10000;
@@ -84,6 +85,7 @@ async function startCollection(tabId, requestedMaxPages, trigger) {
     accepted: 0,
     saved: 0,
     queuedForEnrichment: 0,
+    newLinks: [],
     lastSignature: "",
     retries: 0,
     error: "",
@@ -154,6 +156,7 @@ async function processPage() {
     accepted: savingState.accepted + imported.accepted,
     saved: savingState.saved + imported.saved,
     queuedForEnrichment: savingState.queuedForEnrichment + (imported.queued_for_enrichment || 0),
+    newLinks: [...new Set([...(savingState.newLinks || []), ...(imported.new_links || [])])],
     lastSignature: page.signature,
     retries: 0,
     message: `Page ${savingState.pagesVisited + 1}: saved ${imported.saved} new job(s).`,
@@ -196,10 +199,28 @@ function pause(milliseconds) {
 }
 
 async function finish(state, reason) {
+  let postprocessingMessage = "No new jobs need post-processing.";
+  try {
+    const response = await fetchWithTimeout(FINALIZE_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        links: state.newLinks || [],
+        pagesVisited: state.pagesVisited,
+        captured: state.captured,
+        saved: state.saved,
+      }),
+    });
+    const finalized = await response.json();
+    if (!response.ok) throw new Error(finalized.error || "Could not schedule post-processing.");
+    postprocessingMessage = finalized.message || "Automatic post-processing is scheduled.";
+  } catch (error) {
+    postprocessingMessage = `Jobs were saved, but automatic post-processing could not be scheduled: ${error.message || String(error)}`;
+  }
   await saveState({
     ...state,
     running: false,
-    message: `${reason} Saved ${state.saved} new jobs from ${state.pagesVisited} page(s). Job Tracker is capturing public descriptions and local scores for ${state.queuedForEnrichment} new job(s) in the background.`,
+    message: `${reason} Saved ${state.saved} new jobs from ${state.pagesVisited} page(s). ${postprocessingMessage}`,
   });
   if (state.trigger === "scheduled") {
     const today = localDateKey();

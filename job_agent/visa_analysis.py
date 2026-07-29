@@ -75,12 +75,21 @@ def analyze_new_jobs(job_ids: list[int]) -> dict[str, int]:
     return _update_assessments(employer_counts, job_ids)
 
 
-def reassess_explicit_posting_language() -> dict[str, int]:
+def reassess_explicit_posting_language(
+    job_ids: list[int] | None = None,
+) -> dict[str, int]:
     ensure_database()
     checked_at = datetime.now(timezone.utc).isoformat()
     summary: Counter[str] = Counter()
     with sqlite3.connect(DB_PATH) as connection:
-        rows = connection.execute("SELECT id, description FROM jobs").fetchall()
+        if job_ids:
+            placeholders = ",".join("?" for _ in job_ids)
+            rows = connection.execute(
+                f"SELECT id, description FROM jobs WHERE id IN ({placeholders})",
+                job_ids,
+            ).fetchall()
+        else:
+            rows = connection.execute("SELECT id, description FROM jobs").fetchall()
         for job_id, description in rows:
             assessment = _posting_language_assessment(str(description or ""))
             if assessment is None:

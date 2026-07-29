@@ -14,7 +14,9 @@ def run_collection_job() -> int:
     return int(run_collection_and_prepare_matches()["saved"])
 
 
-def run_collection_and_prepare_matches() -> dict[str, object]:
+def run_collection_and_prepare_matches(
+    submit_gemini: bool = True,
+) -> dict[str, object]:
     collected_jobs = []
 
     for source in get_sources():
@@ -37,8 +39,10 @@ def run_collection_and_prepare_matches() -> dict[str, object]:
             logger.warning("New jobs were saved but local scoring failed: %s", exc)
 
     batch_message = "No new described jobs were collected."
-    if saved_job_ids:
+    if saved_job_ids and submit_gemini:
         batch_message = _submit_new_matches_to_gemini_batch()
+    elif saved_job_ids:
+        batch_message = "Gemini submission deferred to the automation coordinator."
     return {
         "saved": len(saved_job_ids),
         "saved_job_ids": saved_job_ids,

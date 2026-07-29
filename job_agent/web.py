@@ -12,6 +12,7 @@ from job_agent.linkedin_review import (
     parse_linkedin_json,
 )
 from job_agent.config import (
+    AUTOMATION_PUBLIC_COLLECTION_TIME,
     GREENHOUSE_BOARDS,
     LEVER_SITES,
     configured_boards,
@@ -441,6 +442,7 @@ def create_app() -> Flask:
 
     @app.get("/operations")
     def operations():
+        from job_agent.automation import automation_status
         from job_agent.gemini_batch import batch_status
         from job_agent.gemini_queue import gemini_queue_status
         from job_agent.public_enrichment import overnight_public_backfill_status
@@ -455,7 +457,9 @@ def create_app() -> Flask:
             gemini_configured=bool(get_user_setting("GEMINI_API_KEY")),
             overnight_status=overnight_public_backfill_status(),
             gemini_status=gemini_queue_status(),
-            gemini_batch_status=batch_status(refresh=True),
+            gemini_batch_status=batch_status(refresh=False),
+            automation_status=automation_status(),
+            automation_public_collection_time=AUTOMATION_PUBLIC_COLLECTION_TIME,
             greenhouse_boards=configured_boards(GREENHOUSE_BOARDS),
             lever_sites=configured_boards(LEVER_SITES),
             message=request.args.get("message", "").strip(),
@@ -463,9 +467,11 @@ def create_app() -> Flask:
 
     @app.post("/operations/collect-public-boards")
     def collect_public_boards():
+        from job_agent.automation import schedule_public_postprocessing
         from job_agent.collector import run_collection_and_prepare_matches
 
-        result = run_collection_and_prepare_matches()
+        result = run_collection_and_prepare_matches(submit_gemini=False)
+        schedule_public_postprocessing(result["saved_job_ids"])
         message = (
             f"Saved {result['saved']} new public-board job(s); "
             f"locally scored {result['local_scored']}. {result['gemini_batch_message']}"
@@ -760,9 +766,12 @@ def create_app() -> Flask:
             existing_links = existing_job_links(job.link for job in jobs)
             saved = save_jobs(jobs)
             new_links = [job.link for job in jobs if job.link not in existing_links]
-            from job_agent.public_enrichment import start_overnight_public_backfill
+            deferred = request.args.get("defer_enrichment") == "1"
+            capture_status = None
+            if saved and not deferred:
+                from job_agent.public_enrichment import start_overnight_public_backfill
 
-            capture_status = start_overnight_public_backfill() if saved else None
+                capture_status = start_overnight_public_backfill()
             return jsonify(
                 {
                     "captured": captured,
@@ -770,7 +779,29 @@ def create_app() -> Flask:
                     "saved": saved,
                     "new_links": new_links,
                     "automatic_capture_running": bool(capture_status and capture_status["running"]),
+                    "enrichment_deferred": deferred,
                     "total": job_count(),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"error": str(exc)}), 400
+
+    @app.post("/api/linkedin/finalize-collection")
+    def linkedin_finalize_collection_api():
+        try:
+            raw = request.get_json(force=True)
+            links = raw.get("links", []) if isinstance(raw, dict) else []
+            if not isinstance(links, list):
+                raise ValueError("Expected a links array.")
+            from job_agent.automation import schedule_linkedin_postprocessing
+
+            job_ids = job_ids_for_links(links)
+            status = schedule_linkedin_postprocessing(job_ids)
+            return jsonify(
+                {
+                    "scheduled": True,
+                    "job_count": len(job_ids),
+                    "message": str(status["message"]),
                 }
             )
         except Exception as exc:  # noqa: BLE001

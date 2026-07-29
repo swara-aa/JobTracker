@@ -1,5 +1,5 @@
 from job_agent.web import create_app
-from job_agent.public_enrichment import start_overnight_public_backfill
+from job_agent.automation import start_automation_coordinator
 
 
 app = create_app()
@@ -7,5 +7,5 @@ app = create_app()
 
 if __name__ == "__main__":
     # The reloader creates a second process and can retain stale environment values.
-    start_overnight_public_backfill()
+    start_automation_coordinator()
     app.run(debug=False, use_reloader=False)
