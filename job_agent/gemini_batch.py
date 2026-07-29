@@ -18,6 +18,7 @@ from job_agent.storage import fetch_job, fetch_resumes, job_ids_without_gemini_m
 
 STATE_PATH = DATA_DIR / "gemini_batch_state.json"
 REQUEST_PATH = DATA_DIR / "gemini_resume_batch.jsonl"
+FAILURE_PATH = DATA_DIR / "gemini_batch_failures.json"
 
 
 def submit_gemini_resume_batch() -> dict[str, object]:
@@ -73,7 +74,18 @@ def batch_status(refresh: bool = False) -> dict[str, object]:
     state["provider_state"] = str(getattr(batch, "state", "UNKNOWN"))
     if "SUCCEEDED" in state["provider_state"]:
         completed, failed = _import_results(client, batch)
-        state.update({"active": False, "completed": completed, "failed": failed, "message": "Batch results imported."})
+        message = "Batch results imported."
+        if failed:
+            message += " Review the recorded batch failures before retrying them."
+        state.update(
+            {
+                "active": False,
+                "completed": completed,
+                "failed": failed,
+                "failure_details_path": str(FAILURE_PATH) if failed else "",
+                "message": message,
+            }
+        )
     elif any(word in state["provider_state"] for word in ("FAILED", "CANCELLED", "EXPIRED")):
         state.update({"active": False, "message": f"Batch ended: {state['provider_state']}"})
     else:
@@ -110,10 +122,14 @@ def _import_results(client: Any, batch: Any) -> tuple[int, int]:
         raise RuntimeError("Gemini batch completed without an output file.")
     content = client.files.download(file=output_name).decode("utf-8")
     completed = failed = 0
-    for line in content.splitlines():
-        item = json.loads(line)
+    failures: list[dict[str, object]] = []
+    for line_number, line in enumerate(content.splitlines(), start=1):
+        job_id: int | None = None
         try:
+            item = json.loads(line)
             job_id = int(item["key"])
+            if item.get("error"):
+                raise RuntimeError(str(item["error"]))
             response = item["response"]
             parts = response.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             text = next(part.get("text") for part in parts if part.get("text"))
@@ -121,8 +137,19 @@ def _import_results(client: Any, batch: Any) -> tuple[int, int]:
             _validate_rankings(rankings, {int(resume["id"]) for resume in fetch_resumes()})
             _save_rankings(job_id, rankings)
             completed += 1
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             failed += 1
+            failures.append(
+                {
+                    "job_id": job_id,
+                    "line": line_number,
+                    "error": str(exc)[:1000],
+                }
+            )
+    if failures:
+        FAILURE_PATH.write_text(json.dumps(failures, indent=2), encoding="utf-8")
+    elif FAILURE_PATH.exists():
+        FAILURE_PATH.unlink()
     return completed, failed
 
 
