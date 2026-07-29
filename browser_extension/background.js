@@ -1,6 +1,7 @@
 const IMPORT_URL = "http://127.0.0.1:5000/api/linkedin/import";
 const MAX_PAGE_LIMIT = 15;
-const PAGE_WAIT_MS = 1000;
+const PAGE_LOAD_RETRY_MS = 1000;
+const NEXT_PAGE_WAIT_MS = 10000;
 const IMPORT_TIMEOUT_MS = 10000;
 const MAX_PAGE_LOAD_RETRIES = 15;
 const SCHEDULE_ALARM = "jobTrackerDailyCollection";
@@ -118,7 +119,7 @@ async function processPage() {
       retries: state.retries + 1,
       message: `Waiting for visible job cards to load (${state.retries + 1}/${MAX_PAGE_LOAD_RETRIES})...`,
     });
-    await pause(PAGE_WAIT_MS);
+    await pause(PAGE_LOAD_RETRY_MS);
     return processPage();
   }
   if (page.signature === state.lastSignature) {
@@ -130,7 +131,7 @@ async function processPage() {
       retries: state.retries + 1,
       message: `Waiting for the next results page to load (${state.retries + 1}/${MAX_PAGE_LOAD_RETRIES})...`,
     });
-    await pause(PAGE_WAIT_MS);
+    await pause(PAGE_LOAD_RETRY_MS);
     return processPage();
   }
 
@@ -171,7 +172,7 @@ async function processPage() {
     return;
   }
   await saveState({ ...updated, message: `Saved page ${updated.pagesVisited}; opening the next page...` });
-  await pause(PAGE_WAIT_MS);
+  await pause(NEXT_PAGE_WAIT_MS);
   return processPage();
 }
 
