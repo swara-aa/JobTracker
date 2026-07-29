@@ -36,6 +36,7 @@
       .tags { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
       .tag { padding:4px 8px; border:1px solid var(--line); border-radius:999px; color:var(--muted); font-size:.8rem; }
       .tag.good { color:var(--good); border-color:#a9d8c4; background:#e7f5ee; }
+      .tag.bad { color:#8b2e24; border-color:#e5b6ac; background:#fbe8e4; }
       .job-actions { display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; }
       form { margin:0; }
       button { border:0; border-radius:999px; padding:9px 12px; cursor:pointer; background:var(--soft); color:var(--accent); }
@@ -92,7 +93,7 @@
               <p>{{ job.company }} · {{ job.location }} · posted {{ job.posting_date|relative_time }}</p>
               <div class="tags">
                 <span class="tag">{{ job.application_status }}</span>
-                {% if job.visa_assessment %}<span class="tag {% if 'sponsor' in job.visa_assessment|lower %}good{% endif %}">{{ job.visa_assessment }}</span>{% endif %}
+                {% if job.visa_assessment %}<span class="tag {% if job.visa_assessment.startswith('Yes -') %}good{% elif job.visa_assessment.startswith('No -') %}bad{% endif %}">{{ job.visa_assessment }}</span>{% endif %}
                 {% if job.workplace_type %}<span class="tag">{{ job.workplace_type }}</span>{% endif %}
               </div>
             </div>
