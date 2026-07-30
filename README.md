@@ -98,7 +98,7 @@ The extension imports visible result cards and advances through result pages aft
 ./scripts/install_macos_daily_automation.sh
 ```
 
-The installed LaunchAgent opens Chrome and starts Flask at 7:55 AM. macOS briefly uses Terminal to start the local Flask process because background agents cannot directly read projects stored under Desktop. The extension opens the saved search at its configured time and runs at most once per calendar day. Chrome must remain signed in to LinkedIn. Collection stops safely if the page shows a login, challenge, missing cards, or inaccessible results; it does not bypass access controls.
+The installed LaunchAgent checks Chrome and Flask at login, at 7:55 AM, and every five minutes while the Mac is awake. macOS briefly uses Terminal to start the local Flask process because background agents cannot directly read projects stored under Desktop. The extension opens the saved search at its configured time and runs at most once successfully per calendar day. If the Mac was asleep at that time, a five-minute extension heartbeat starts the missed collection after the Mac wakes and allows up to three attempts that day. Chrome must remain signed in to LinkedIn. Collection stops safely if the page shows a login, challenge, missing cards, or inaccessible results; it does not bypass access controls.
 
 When the last LinkedIn results page finishes, the extension notifies Flask. The automation coordinator waits two minutes, starts paced public-description capture for jobs still missing descriptions, locally refreshes their skills and visa language, then submits all described unmatched jobs as one Gemini Batch. It checks the batch every five minutes and imports completed scores without requiring the Operations page to be open.
 

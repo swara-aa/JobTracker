@@ -6,6 +6,9 @@ const NEXT_PAGE_WAIT_MS = 10000;
 const IMPORT_TIMEOUT_MS = 10000;
 const MAX_PAGE_LOAD_RETRIES = 15;
 const SCHEDULE_ALARM = "jobTrackerDailyCollection";
+const RECOVERY_ALARM = "jobTrackerMissedRunRecovery";
+const RECOVERY_INTERVAL_MINUTES = 5;
+const MAX_DAILY_ATTEMPTS = 3;
 const SCHEDULE_KEY = "jobTrackerSchedule";
 const DEFAULT_SCHEDULE = {
   enabled: false,
@@ -13,13 +16,15 @@ const DEFAULT_SCHEDULE = {
   maxPages: 12,
   searchUrl: "",
   lastAttemptDate: "",
+  lastAttemptAt: "",
+  attemptCount: 0,
   lastRunDate: "",
   lastResult: "Daily collection is not enabled.",
   warning: "",
 };
 
 chrome.runtime.onInstalled.addListener(() => {
-  ensureSchedule().then(scheduleNextAlarm);
+  ensureSchedule().then(ensureScheduleAlarms);
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -29,15 +34,22 @@ chrome.runtime.onStartup.addListener(() => {
     } catch (error) {
       await recordScheduleResult(`Missed scheduled collection failed: ${error.message || String(error)}`);
     }
-    await scheduleNextAlarm(await getSchedule());
+    await ensureScheduleAlarms(await getSchedule());
   });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name !== SCHEDULE_ALARM) return;
-  runScheduledCollection(false)
-    .catch((error) => recordScheduleResult(`Scheduled collection failed: ${error.message || String(error)}`))
-    .finally(async () => scheduleNextAlarm(await getSchedule()));
+  if (alarm.name === RECOVERY_ALARM) {
+    ensureSchedule()
+      .then(maybeRunMissedSchedule)
+      .catch((error) => recordScheduleResult(`Missed-run recovery failed: ${error.message || String(error)}`));
+    return;
+  }
+  if (alarm.name === SCHEDULE_ALARM) {
+    runScheduledCollection(false)
+      .catch((error) => recordScheduleResult(`Scheduled collection failed: ${error.message || String(error)}`))
+      .finally(async () => scheduleNextAlarm(await getSchedule()));
+  }
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -53,7 +65,7 @@ async function handleMessage(message) {
   }
   if (message.type === "saveSchedule") {
     const schedule = await saveSchedule(message.schedule || {});
-    await scheduleNextAlarm(schedule);
+    await ensureScheduleAlarms(schedule);
     return { ok: true, schedule };
   }
   if (message.type === "runScheduledNow") {
@@ -300,10 +312,27 @@ async function scheduleNextAlarm(schedule) {
   await chrome.alarms.create(SCHEDULE_ALARM, { when: nextScheduledTime(schedule.time) });
 }
 
+async function ensureScheduleAlarms(schedule) {
+  await scheduleNextAlarm(schedule);
+  const recoveryAlarm = await chrome.alarms.get(RECOVERY_ALARM);
+  if (!recoveryAlarm) {
+    await chrome.alarms.create(RECOVERY_ALARM, {
+      delayInMinutes: 1,
+      periodInMinutes: RECOVERY_INTERVAL_MINUTES,
+    });
+  }
+}
+
 async function maybeRunMissedSchedule(schedule) {
   if (!schedule.enabled) return;
   const today = localDateKey();
-  if (schedule.lastRunDate === today || schedule.lastAttemptDate === today) return;
+  if (schedule.lastRunDate === today) return;
+  if (
+    schedule.lastAttemptDate === today &&
+    Number(schedule.attemptCount || 0) >= MAX_DAILY_ATTEMPTS
+  ) {
+    return;
+  }
   const [hour, minute] = schedule.time.split(":").map(Number);
   const now = new Date();
   if (now.getHours() * 60 + now.getMinutes() < hour * 60 + minute) return;
@@ -317,13 +346,18 @@ async function runScheduledCollection(force) {
     throw new Error("The scheduled LinkedIn Jobs URL is missing.");
   }
   const today = localDateKey();
-  if (!force && (schedule.lastRunDate === today || schedule.lastAttemptDate === today)) {
+  if (!force && schedule.lastRunDate === today) {
     return getState();
   }
+  const attemptCount =
+    schedule.lastAttemptDate === today ? Number(schedule.attemptCount || 0) + 1 : 1;
+  if (!force && attemptCount > MAX_DAILY_ATTEMPTS) return getState();
   await chrome.storage.local.set({
     [SCHEDULE_KEY]: {
       ...schedule,
       lastAttemptDate: today,
+      lastAttemptAt: new Date().toISOString(),
+      attemptCount,
       lastResult: "Opening the saved LinkedIn search...",
     },
   });

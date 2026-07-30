@@ -2,7 +2,9 @@
 
 project_dir="${JOBTRACKER_PROJECT_DIR:-${0:A:h:h}}"
 
-/usr/bin/open -a "Google Chrome"
+if ! /usr/bin/pgrep -x "Google Chrome" >/dev/null 2>&1; then
+  /usr/bin/open -g -a "Google Chrome"
+fi
 
 if /usr/bin/curl -fsS --max-time 3 http://127.0.0.1:5000/ >/dev/null 2>&1; then
   exit 0
