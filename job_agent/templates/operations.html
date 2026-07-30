@@ -46,7 +46,8 @@
       </section>
       <section class="panel"><h2>Gemini Batch Scoring</h2>
         {% if not gemini_configured %}<div class="warning">Add `GEMINI_API_KEY` to `.env`, then restart Flask before submitting a batch.</div>{% endif %}
-        {% if gemini_batch_status.active %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>{{ gemini_batch_status.total }} jobs submitted{% if gemini_batch_status.provider_state %} · {{ gemini_batch_status.provider_state }}{% endif %}</div>
+        {% if gemini_batch_status.submission_in_progress %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>The upload has a two-minute network timeout and will become retryable if interrupted.</div>
+        {% elif gemini_batch_status.active %}<div class="notice"><strong>{{ gemini_batch_status.message }}</strong><br>{{ gemini_batch_status.total }} jobs submitted{% if gemini_batch_status.provider_state %} · {{ gemini_batch_status.provider_state }}{% endif %}</div>
         {% else %}<p>Described, non-closed jobs are submitted as one asynchronous Gemini Batch job after collection settles. Results are monitored and imported automatically; this manual action is only a fallback.</p><form method="post" action="/jobs/submit-gemini-batch"><button type="submit">Submit Gemini Batch Now</button></form>{% endif %}
         {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
       </section>

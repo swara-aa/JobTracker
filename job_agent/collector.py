@@ -60,7 +60,8 @@ def _submit_new_matches_to_gemini_batch() -> str:
         return "Gemini batch not submitted: GEMINI_API_KEY is not configured."
     if not fetch_resumes():
         return "Gemini batch not submitted: upload a resume first."
-    if batch_status(refresh=False).get("active"):
+    batch = batch_status(refresh=False)
+    if batch.get("active") or batch.get("submission_in_progress"):
         return "Gemini batch not submitted: another batch is already running."
     try:
         state = submit_gemini_resume_batch()

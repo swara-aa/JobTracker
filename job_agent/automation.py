@@ -154,9 +154,11 @@ def _bootstrap_pending_work() -> None:
         ).isoformat()
         changed = True
     can_run_gemini = bool(get_user_setting("GEMINI_API_KEY") and fetch_resumes())
+    gemini_batch = batch_status(refresh=False)
     if (
         described_job_ids_without_gemini_match()
-        and not batch_status(refresh=False).get("active")
+        and not gemini_batch.get("active")
+        and not gemini_batch.get("submission_in_progress")
         and not state.get("gemini_not_before")
         and can_run_gemini
         and int(state.get("batch_submissions") or 0) < MAX_DAILY_BATCH_SUBMISSIONS
@@ -282,7 +284,8 @@ def _maybe_submit_gemini_batch() -> None:
         fetch_resumes,
     )
 
-    if batch_status(refresh=False).get("active"):
+    current_batch = batch_status(refresh=False)
+    if current_batch.get("active") or current_batch.get("submission_in_progress"):
         return
     if overnight_public_backfill_status().get("running"):
         return
