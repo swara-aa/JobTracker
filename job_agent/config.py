@@ -5,8 +5,6 @@ from pathlib import Path
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
-DB_PATH = DATA_DIR / "jobs.db"
 
 
 def _load_local_env() -> None:
@@ -25,6 +23,33 @@ def _load_local_env() -> None:
 
 
 _load_local_env()
+
+_data_dir = Path(os.getenv("JOBTRACKER_DATA_DIR", "data"))
+DATA_DIR = _data_dir if _data_dir.is_absolute() else BASE_DIR / _data_dir
+DB_PATH = DATA_DIR / "jobs.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+
+def database_backend() -> str:
+    """Return the configured persistence backend without opening a connection."""
+    if not DATABASE_URL:
+        return "sqlite"
+    if DATABASE_URL.startswith(("postgres://", "postgresql://")):
+        return "postgresql"
+    raise ValueError("DATABASE_URL must use a postgresql:// or postgres:// URL.")
+
+_company_database_path = Path(os.getenv("COMPANY_DATABASE_PATH", "config/companies.csv"))
+COMPANY_DATABASE_PATH = (
+    _company_database_path
+    if _company_database_path.is_absolute()
+    else BASE_DIR / _company_database_path
+)
+COMPANY_INTELLIGENCE_ENABLED = os.getenv("COMPANY_INTELLIGENCE_ENABLED", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 
 DEFAULT_SCHEDULE_TIME = os.getenv("JOB_AGENT_SCHEDULE_TIME", "09:00")
 AUTOMATION_PUBLIC_COLLECTION_TIME = os.getenv(

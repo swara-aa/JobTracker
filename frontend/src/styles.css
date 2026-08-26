@@ -1,0 +1,10 @@
+:root { color:#1f2933; background:#f3efe8; font-family:Georgia,"Times New Roman",serif; }
+* { box-sizing:border-box; }
+body { margin:0; min-width:320px; }
+header { min-height:58px; padding:12px clamp(16px,4vw,48px); display:flex; align-items:center; justify-content:space-between; gap:16px; background:#fffaf2; border-bottom:1px solid #dfd5c7; }
+header div { display:flex; align-items:baseline; gap:12px; }
+header strong { font-size:1.25rem; }
+#health { color:#64717d; font-size:.9rem; }
+a { color:#aa3a2a; font-weight:bold; }
+iframe { width:100%; height:calc(100vh - 58px); border:0; display:block; background:#f3efe8; }
+.error { max-width:680px; margin:12vh auto; padding:32px; background:#fffaf2; border:1px solid #dfd5c7; border-radius:16px; }

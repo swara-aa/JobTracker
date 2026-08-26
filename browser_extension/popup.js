@@ -9,6 +9,9 @@ const useCurrentUrlButton = document.getElementById("use-current-url");
 const saveScheduleButton = document.getElementById("save-schedule");
 const runScheduledNowButton = document.getElementById("run-scheduled-now");
 const scheduleStatusNode = document.getElementById("schedule-status");
+const apiBaseUrlInput = document.getElementById("api-base-url");
+const importTokenInput = document.getElementById("import-token");
+const saveConnectionButton = document.getElementById("save-connection");
 
 collectButton.addEventListener("click", async () => {
   try {
@@ -50,6 +53,8 @@ saveScheduleButton.addEventListener("click", async () => {
         time: scheduleTimeInput.value,
         maxPages: pageLimitInput.value,
         searchUrl: searchUrlInput.value,
+        apiBaseUrl: apiBaseUrlInput.value,
+        importToken: importTokenInput.value,
       },
     });
     if (!result?.ok) throw new Error(result?.error || "Could not save the daily schedule.");
@@ -58,6 +63,23 @@ saveScheduleButton.addEventListener("click", async () => {
       result.schedule.warning || (result.schedule.enabled ? "Daily schedule saved." : "Daily collection is disabled."),
       result.schedule.warning ? "error" : "success",
     );
+  } catch (error) {
+    showScheduleStatus(error.message || String(error), "error");
+  }
+});
+
+saveConnectionButton.addEventListener("click", async () => {
+  try {
+    const result = await chrome.runtime.sendMessage({
+      type: "saveConnection",
+      connection: {
+        apiBaseUrl: apiBaseUrlInput.value,
+        importToken: importTokenInput.value,
+      },
+    });
+    if (!result?.ok) throw new Error(result?.error || "Could not save connection.");
+    renderSchedule(result.schedule);
+    showScheduleStatus("Connection saved.", "success");
   } catch (error) {
     showScheduleStatus(error.message || String(error), "error");
   }
@@ -114,6 +136,8 @@ function renderSchedule(schedule) {
   scheduleEnabledInput.checked = Boolean(schedule.enabled);
   scheduleTimeInput.value = schedule.time || "08:00";
   searchUrlInput.value = schedule.searchUrl || "";
+  apiBaseUrlInput.value = schedule.apiBaseUrl || "http://127.0.0.1:5000";
+  importTokenInput.value = schedule.importToken || "";
   pageLimitInput.value = String(schedule.maxPages || pageLimitInput.value || 12);
   showScheduleStatus(schedule.warning || schedule.lastResult || "Daily collection is not enabled.", schedule.warning ? "error" : "");
 }

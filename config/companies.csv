@@ -1,0 +1,502 @@
+company_name,aliases,fortune_500,visa_friendly,sponsors_h1b,hires_entry_level,hires_software_engineers,hires_ai_ml,industry,careers_url,notes
+Google,Google LLC|Alphabet,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.google.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Microsoft,Microsoft Corporation,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.microsoft.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Amazon,Amazon.com|Amazon Web Services|AWS,true,unknown,unknown,unknown,unknown,unknown,Technology,https://www.amazon.jobs,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Apple,Apple Inc.,true,unknown,unknown,unknown,unknown,unknown,Technology,https://jobs.apple.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+NVIDIA,NVIDIA Corporation,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.nvidia.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Meta,Meta Platforms|Facebook,true,unknown,unknown,unknown,unknown,unknown,Technology,https://www.metacareers.com,Fortune status and eligibility fields require verification before use.
+Salesforce,Salesforce Inc.,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.salesforce.com,Fortune status and eligibility fields require verification before use.
+IBM,International Business Machines|IBM Corporation,true,unknown,unknown,unknown,unknown,unknown,Technology,https://www.ibm.com/careers,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Accenture,Accenture plc,unknown,unknown,unknown,unknown,unknown,unknown,Professional services,https://www.accenture.com/us-en/careers,Fortune status and eligibility fields require verification before use.
+Adobe,Adobe Inc.,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.adobe.com,Fortune status and eligibility fields require verification before use.
+CVS Health,CVS|CVS Health Corporation,true,unknown,unknown,unknown,unknown,unknown,Health care,https://jobs.cvshealth.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Humana,Humana Inc.,true,unknown,unknown,unknown,unknown,unknown,Health care,https://careers.humana.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Boeing,The Boeing Company|Boeing Co.,true,unknown,unknown,unknown,unknown,unknown,Aerospace and defense,https://jobs.boeing.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+American Express,American Express Company|AmEx,true,unknown,unknown,unknown,unknown,unknown,Financial services,https://www.americanexpress.com/en-us/careers/,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Caterpillar,Caterpillar Inc.|CAT,true,unknown,unknown,unknown,unknown,unknown,Industrial equipment,https://careers.caterpillar.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Oracle,Oracle Corporation,true,unknown,unknown,unknown,unknown,unknown,Technology,https://careers.oracle.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Cisco,Cisco Systems|Cisco Systems Inc.,true,unknown,unknown,unknown,unknown,unknown,Technology,https://jobs.cisco.com,Fortune 500 2026. Eligibility and hiring-policy fields require separate verification.
+Dell Technologies,Dell|Dell Inc.,true,unknown,unknown,unknown,unknown,unknown,Technology,https://jobs.dell.com,Fortune listing is recorded from Fortune's company profile. Eligibility and hiring-policy fields require separate verification.
+Walmart,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+UnitedHealth Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Berkshire Hathaway,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+McKesson,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Exxon Mobil,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cencora,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+JPMorgan Chase,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Costco Wholesale,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cigna Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cardinal Health,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Elevance Health,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Centene,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Bank of America,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Chevron,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ford Motor,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+General Motors,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Citigroup,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Home Depot,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fannie Mae,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kroger,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Verizon Communications,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Phillips 66,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Marathon Petroleum,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+StoneX Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+State Farm Insurance,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Freddie Mac,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AT&T,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Goldman Sachs Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Comcast,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Wells Fargo,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Morgan Stanley,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Valero Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Target,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Tesla,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Walt Disney,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Johnson & Johnson,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PepsiCo,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+UPS,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+RTX,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+FedEx,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Progressive,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lowe's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Energy Transfer,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Procter & Gamble,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sysco,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Albertsons,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Archer Daniels Midland,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+MetLife,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+HCA Healthcare,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lockheed Martin,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+New York Life Insurance,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Capital One Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Allstate,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Eli Lilly,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Merck,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Nationwide,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Broadcom,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Delta Air Lines,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Publix Super Markets,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Pfizer,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+TD Synnex,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+ConocoPhillips,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Galaxy Digital,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AbbVie,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Prudential Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+TJX,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Performance Food Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+United Airlines Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+HP,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Charter Communications,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+American Airlines Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Tyson Foods,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Intel,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Enterprise Products Partners,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ingram Micro Holding,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+General Dynamics,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Uber Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+USAA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+TIAA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Liberty Mutual Insurance Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Travelers,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Bristol-Myers Squibb,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Coca-Cola,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Nike,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Massachusetts Mutual Life,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+GE Aerospace,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Deere,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Plains GP Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Molina Healthcare,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Netflix,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Thermo Fisher Scientific,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Abbott Laboratories,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Qualcomm,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Northwestern Mutual,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+U.S. Bancorp,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dollar General,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Northrop Grumman,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Best Buy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Bank of New York (BNY),,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Honeywell International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Philip Morris International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CBRE Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Visa,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dow,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+US Foods Holding,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Mondelez International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lithia Motors,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+GE Vernova,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Micron Technology,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Warner Bros. Discovery,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Starbucks,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+World Kinect,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Amgen,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CHS,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Advanced Micro Devices,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Coupang,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hewlett Packard Enterprise,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+D.R. Horton,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lennar,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PNC Financial Services Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cummins,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Oneok,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PayPal Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+GuideWell Mutual Holding,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Mastercard,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Nucor,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Apollo Global Management,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Penske Automotive Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Duke Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+United Natural Foods,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ferguson Enterprises,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Arrow Electronics,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+NRG Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Truist Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Jabil,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Southern,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Gilead Sciences,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PBF Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Paramount Skydance,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+KKR,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Quanta Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Paccar,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Medline,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Applied Materials,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hartford Insurance Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CarMax,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Southwest Airlines,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Baker Hughes,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Charles Schwab,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AutoNation,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+NextEra Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Marsh & McLennan,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Booking Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+McDonald's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+HF Sinclair,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AIG,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Occidental Petroleum,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Marriott International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Jones Lang LaSalle,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+International Paper,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Freeport-McMoRan,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Constellation Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Waste Management,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Live Nation Entertainment,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Stryker,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dollar Tree,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+3M,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kraft Heinz,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PG&E,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Danaher,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Union Pacific,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Genuine Parts,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Exelon,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+BlackRock,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Block,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Reinsurance Group of America,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sherwin-Williams,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+WESCO International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lear,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Synchrony Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Amphenol,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ross Stores,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Newmont,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+EOG Resources,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+State Street,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Macy's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Group 1 Automotive,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CDW,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Avnet,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Halliburton,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Super Micro Computer,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+American Electric Power,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+L3Harris Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Becton Dickinson,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Carrier Global,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+BJ's Wholesale Club,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Tenet Healthcare,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fiserv,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cognizant Technology Solutions,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+GE HealthCare Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Automatic Data Processing,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Colgate-Palmolive,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Carvana,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Altria Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Boston Scientific,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cheniere Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Parker-Hannifin,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kimberly-Clark,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+American Family Insurance Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+General Mills,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Edison International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AutoZone,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ameriprise Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Intuit,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Guardian Life Ins. Co. of America,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cleveland-Cliffs,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Global Partners,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Aramark,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Corebridge Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Loews,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lam Research,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Goodyear Tire & Rubber,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Pacific Life,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Auto-Owners Insurance,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Peter Kiewit Sons',,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lincoln National,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Steel Dynamics,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Emerson Electric,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Asbury Automotive Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+ManpowerGroup,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+W.W. Grainger,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Jones Financial (Edward Jones),,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+O'Reilly Automotive,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Vistra,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Texas Instruments,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+MGM Resorts International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Corteva,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Universal Health Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PulteGroup,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Omnicom Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dick's Sporting Goods,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Devon Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Leidos Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Aflac,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Targa Resources,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Murphy USA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+LPL Financial Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+EMCOR Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kinder Morgan,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Consolidated Edison,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Keurig Dr Pepper,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Republic Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Markel Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Farmers Insurance Exchange,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dominion Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Land O'Lakes,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+IQVIA Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fox,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AECOM,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+C.H. Robinson Worldwide,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Bitgo Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+United Rentals,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ecolab,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Illinois Tool Works,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Casey's General Stores,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Raymond James Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PPG Industries,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+DTE Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Corning,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Principal Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Mutual of Omaha,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kohl's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Tractor Supply,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Whirlpool,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fluor,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Gap,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+S&P Global,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ally Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Builders FirstSource,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sonic Automotive,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Stanley Black & Decker,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kenvue,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Kyndryl Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Diamondback Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+EchoStar,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Textron,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Expedia Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+W.R. Berkley,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Xcel Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+FirstEnergy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Erie Insurance Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+First Citizens BancShares,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Blackstone,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fidelity National Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Otis Worldwide,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Amentum Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Regeneron Pharmaceuticals,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Estée Lauder,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+BorgWarner,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Northern Trust,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Viatris,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+MasTec,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Reliance,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Western & Southern Financial Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Alaska Air Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+BrightSpring Health Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CSX,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+LKQ,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Labcorp Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Arthur J. Gallagher,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Venture Global,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+DoorDash,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sempra,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+DaVita,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Eversource Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+ServiceNow,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+M&T Bank,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Henry Schein,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+GXO Logistics,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ball,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Unum Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Las Vegas Sands,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Entergy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fifth Third Bancorp,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Graybar Electric,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+DXC Technology,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Alcoa,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Assurant,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ryder System,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Intercontinental Exchange,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cincinnati Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Chewy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Community Health Systems,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Huntington Bancshares,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Huntington Ingalls Industries,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Wayfair,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lumen Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ulta Beauty,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Crown Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Airbnb,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AES,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Norfolk Southern,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Public Service Enterprise Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+KLA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Expand Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hormel Foods,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Darden Restaurants,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Citizens Financial Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Mosaic,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hilton Worldwide Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Air Products & Chemicals,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Jacobs Solutions,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Vertex Pharmaceuticals,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+J.B. Hunt Transport Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Booz Allen Hamilton Holding,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Williams,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Chipotle Mexican Grill,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Yum China Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Oscar Health,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hershey,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Motorola Solutions,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Equitable Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Avis Budget Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Conagra Brands,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Baxter International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Burlington Stores,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Caesars Entertainment,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Owens Corning,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+KeyCorp,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Thrivent Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Westlake,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Westinghouse Air Brake,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Molson Coors Beverage,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Lululemon athletica,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+FM,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ebay,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Expeditors Intl. of Washington,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Quest Diagnostics,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Analog Devices,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Andersons,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Gold.com,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Toll Brothers,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+International Flavors & Fragrances,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Welltower,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Jefferies Financial Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Autoliv,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Mohawk Industries,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Delek US Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fidelity National Information (FIS),,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Accendra Health,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+American Tower,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+NVR,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Interactive Brokers Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Oshkosh,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Cintas,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Campbell's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Vertiv Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Global Payments,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Constellation Brands,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+AGCO,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Intuitive Surgical,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ace Hardware,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dana,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Biogen,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+News Corp.,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Concentrix,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+WEC Energy Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+VF,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Seaboard,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Icahn Enterprises,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Regions Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Thor Industries,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Workday,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Celanese,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Western Digital,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+QVC Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Zoetis,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CenterPoint Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Equinix,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Palo Alto Networks,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+APA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Old Republic International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Comfort Systems USA,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+JetBlue Airways,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PPL,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Xylem,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Arista Networks,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Packaging Corp. of America,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+PVH,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ovintiv,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Avery Dennison,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+TransDigm Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sprouts Farmers Market,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Prologis,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Franklin Resources,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Eastman Chemical,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+ABM Industries,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+NOV,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+J.M. Smucker,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Securian Financial Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+EQT,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CACI International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Graphic Packaging Holding,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Advance Auto Parts,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Optimum Communications,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sirius XM Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+CMS Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Hertz Global Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ameren,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Rockwell Automation,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Solventum,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Monster Beverage,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Nasdaq,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Howmet Aerospace,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Insight Enterprises,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Zimmer Biomet Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Yum Brands,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Fastenal,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Marvell Technology,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Voya Financial,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+American Financial Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Post Holdings,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+XPO,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+DuPont,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sanmina,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Taylor Morrison Home,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Dover,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Vulcan Materials,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+APi Group,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Roper Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+KBR,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Sonoco Products,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Williams-Sonoma,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Commercial Metals,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Moody's,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Continental Resources,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Ingersoll Rand,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Core & Main,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Coterra Energy,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Primoris Services,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Masco,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Somnigroup International,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.
+Resideo Technologies,,true,,,,,,,,Fortune 500 2026 name imported from the public US500 table; other fields are unknown.

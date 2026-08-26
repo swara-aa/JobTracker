@@ -1,0 +1,4 @@
+# Optional local semantic-scoring dependency.
+# Install this in addition to requirements.txt only when
+# JOB_AGENT_ENABLE_LOCAL_EMBEDDINGS=1 is enabled.
+sentence-transformers>=3.0.0,<4.0.0

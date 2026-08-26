@@ -61,6 +61,7 @@
         <nav class="nav" aria-label="Primary navigation">
           <a class="link-button primary" href="/">Inbox</a>
           <a class="link-button" href="/jobs">Browse Jobs</a>
+          <a class="link-button" href="/analytics">Analytics</a>
           <a class="link-button" href="/resumes">Resume Library</a>
           <a class="link-button" href="/linkedin-review">Import Jobs</a>
           <a class="link-button" href="/operations">Operations</a>
@@ -79,8 +80,8 @@
       <section class="card">
         <div class="section-head">
           <div>
-            <h2>Decide Today</h2>
-            <p>Fresh, scored jobs without a known hard no. A score supports your decision—it is not a prediction.</p>
+            <h2>Top 10 to Apply Now</h2>
+            <p>Recalculated whenever you open the Inbox. Fresh, scored jobs without a known hard no; newer roles receive an urgency advantage.</p>
           </div>
           <a class="link-button" href="/jobs?sort=match&amp;posted_within=week">Explore this week</a>
         </div>
@@ -93,12 +94,14 @@
               <p>{{ job.company }} · {{ job.location }} · posted {{ job.posting_date|relative_time }}</p>
               <div class="tags">
                 <span class="tag">{{ job.application_status }}</span>
+                {% if job.is_fortune_500 %}<span class="tag good">Fortune 500 priority</span>{% endif %}
                 {% if job.visa_assessment %}<span class="tag {% if job.visa_assessment.startswith('Yes -') %}good{% elif job.visa_assessment.startswith('No -') %}bad{% endif %}">{{ job.visa_assessment }}</span>{% endif %}
                 {% if job.workplace_type %}<span class="tag">{{ job.workplace_type }}</span>{% endif %}
               </div>
             </div>
             <div class="job-actions">
               <a class="link-button" href="/jobs/{{ job.id }}">Review</a>
+              <a class="link-button" href="/jobs/{{ job.id }}#application-helper">Prepare application</a>
               <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Tailor Resume"><button type="submit">Tailor</button></form>
               <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Applied"><button class="primary" type="submit">Applied</button></form>
               <form method="post" action="/jobs/{{ job.id }}/quick-status"><input type="hidden" name="application_status" value="Not pursuing"><button type="submit">Skip</button></form>

@@ -235,6 +235,7 @@
           </div>
           <div class="actions">
             <a class="link-button" href="/">Inbox</a>
+            <a class="link-button" href="/analytics">Analytics</a>
             <a class="link-button" href="/resumes">Resume Library</a>
             <a class="link-button" href="/linkedin-review">Import Jobs</a>
             <a class="link-button" href="/operations">Operations</a>
@@ -271,6 +272,13 @@
                 <option value="{{ item }}"></option>
                 {% endfor %}
               </datalist>
+            </div>
+            <div class="field">
+              <label for="company_tier">Company tier</label>
+              <select id="company_tier" name="company_tier">
+                <option value="" {% if not filters.company_tier %}selected{% endif %}>All companies</option>
+                <option value="fortune500" {% if filters.company_tier == 'fortune500' %}selected{% endif %}>Fortune 500 only</option>
+              </select>
             </div>
             <div class="field">
               <label for="visa">Visa / Sponsorship</label>
@@ -334,6 +342,7 @@
           <input type="hidden" name="role" value="{{ filters.role }}">
           <input type="hidden" name="location" value="{{ filters.location }}">
           <input type="hidden" name="company" value="{{ filters.company }}">
+          <input type="hidden" name="company_tier" value="{{ filters.company_tier }}">
           <input type="hidden" name="visa" value="{{ filters.visa }}">
           <input type="hidden" name="application_status" value="{{ filters.application_status }}">
           <input type="hidden" name="sort" value="{{ filters.sort }}">
@@ -438,11 +447,11 @@
         {% if total_pages > 1 %}
         <div class="actions pagination">
           {% if page > 1 %}
-          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page - 1) }}">Previous</a>
+          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, company_tier=filters.company_tier, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page - 1) }}">Previous</a>
           {% endif %}
           <span>Page {{ page }} of {{ total_pages }}</span>
           {% if page < total_pages %}
-          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page + 1) }}">Next</a>
+          <a class="link-button" href="{{ url_for('browse_jobs', role=filters.role, location=filters.location, company=filters.company, company_tier=filters.company_tier, visa=filters.visa, application_status=filters.application_status, sort=filters.sort, posted_within=filters.posted_within, minimum_score=filters.minimum_score, maximum_score=filters.maximum_score, view=filters.view, page=page + 1) }}">Next</a>
           {% endif %}
         </div>
         {% endif %}

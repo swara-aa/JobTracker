@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
+import time
 from typing import Any
 
 from job_agent.config import DATA_DIR, get_user_setting
@@ -20,6 +21,8 @@ STATE_PATH = DATA_DIR / "gemini_batch_state.json"
 REQUEST_PATH = DATA_DIR / "gemini_resume_batch.jsonl"
 FAILURE_PATH = DATA_DIR / "gemini_batch_failures.json"
 GEMINI_HTTP_TIMEOUT_MS = 120_000
+FILE_READY_TIMEOUT_SECONDS = 120
+FILE_READY_POLL_SECONDS = 2
 
 
 def submit_gemini_resume_batch() -> dict[str, object]:
@@ -58,6 +61,7 @@ def submit_gemini_resume_batch() -> dict[str, object]:
                     "mime_type": "jsonl",
                 },
             )
+            _wait_for_uploaded_file(client, str(uploaded.name))
             batch = client.batches.create(
                 model=model,
                 src=uploaded.name,
@@ -85,6 +89,21 @@ def submit_gemini_resume_batch() -> dict[str, object]:
     }
     _write_state(state)
     return state
+
+
+def _wait_for_uploaded_file(client: Any, file_name: str) -> None:
+    """Wait for the File API before using a newly uploaded batch input."""
+    deadline = time.monotonic() + FILE_READY_TIMEOUT_SECONDS
+    while True:
+        uploaded = client.files.get(name=file_name)
+        state = str(getattr(uploaded, "state", "")).upper()
+        if "ACTIVE" in state:
+            return
+        if any(terminal in state for terminal in ("FAILED", "ERROR", "EXPIRED")):
+            raise RuntimeError(f"Gemini rejected the uploaded batch file ({state or 'unknown state'}).")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("Gemini did not activate the batch input file within two minutes.")
+        time.sleep(FILE_READY_POLL_SECONDS)
 
 
 def batch_status(refresh: bool = False) -> dict[str, object]:

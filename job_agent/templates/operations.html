@@ -26,7 +26,7 @@
         <div class="grid">
           <div class="metric"><strong>{{ automation_status.public_jobs_saved or 0 }}</strong>public-board jobs in latest run</div>
           <div class="metric"><strong>{{ automation_status.linkedin_jobs_collected or 0 }}</strong>LinkedIn jobs in latest run</div>
-          <div class="metric"><strong>{{ automation_status.batch_submissions or 0 }}/3</strong>Gemini batches submitted today</div>
+          <div class="metric"><strong>{{ automation_status.batch_submissions or 0 }}/3</strong>Gemini batches submitted today<br><small>{{ automation_status.gemini_submission_failures or 0 }}/3 failed attempts</small></div>
         </div>
         <p>Public boards run daily at {{ automation_public_collection_time }}. LinkedIn description capture begins two minutes after the extension finishes. Gemini batches are monitored and imported automatically every five minutes.</p>
         {% if automation_status.last_error %}<div class="warning">{{ automation_status.last_error }}</div>{% endif %}

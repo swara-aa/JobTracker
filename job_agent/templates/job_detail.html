@@ -231,6 +231,38 @@
         {% endif %}
       </section>
 
+      <section class="panel" id="application-helper">
+        <h2>Application Helper</h2>
+        <p class="muted">Create a tailored application plan and cover letter for one resume. This sends only this job description and selected resume to Gemini when you press the button; it never runs automatically.</p>
+        {% if resumes %}
+        <form method="post" action="/jobs/{{ job.id }}/application-helper">
+          <div class="field">
+            <label for="helper_resume_id">Resume to use</label>
+            <select id="helper_resume_id" name="resume_id">
+              {% for resume in resumes %}
+              <option value="{{ resume.id }}" {% if resume.id == selected_resume_id %}selected{% endif %}>{{ resume.name }} · {{ resume.filename }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="actions"><button type="submit">{% if application_helper %}Refresh personalized helper + cover letter{% else %}Create personalized helper + cover letter{% endif %}</button></div>
+        </form>
+        {% else %}
+        <p>Upload a resume before creating a personalized application helper.</p>
+        {% endif %}
+        {% if application_helper %}
+        <div class="notice">Generated for this resume at {{ application_helper.generated_at }} using {{ application_helper.model }}.</div>
+        <div class="grid">
+          <div><h3>Emphasize in your resume</h3><ul>{% for item in application_helper.content.resume_emphasis %}<li>{{ item }}</li>{% endfor %}</ul></div>
+          <div><h3>Keywords you can truthfully weave in</h3><ul>{% for item in application_helper.content.keywords_to_weave %}<li>{{ item }}</li>{% endfor %}</ul></div>
+          <div><h3>Gaps to handle honestly</h3><ul>{% for item in application_helper.content.gaps_to_handle %}<li>{{ item }}</li>{% endfor %}</ul></div>
+          <div><h3>Tailoring steps before applying</h3><ul>{% for item in application_helper.content.tailoring_steps %}<li>{{ item }}</li>{% endfor %}</ul></div>
+        </div>
+        <h3>Personalized cover letter</h3>
+        <div class="job-description" id="cover-letter">{{ application_helper.content.cover_letter }}</div>
+        <div class="actions"><button type="button" id="copy-cover-letter">Copy cover letter</button></div>
+        {% endif %}
+      </section>
+
       {% if resume_matches %}
       <section class="grid">
         {% for match in resume_matches %}
@@ -270,6 +302,13 @@
       {% endif %}
     </main>
     <script>
+      document.getElementById("copy-cover-letter")?.addEventListener("click", async (event) => {
+        const coverLetter = document.getElementById("cover-letter")?.innerText || "";
+        if (!coverLetter) return;
+        await navigator.clipboard.writeText(coverLetter);
+        event.target.textContent = "Copied";
+      });
+
       document.addEventListener("mouseup", (event) => {
         const improvement = event.target.closest(".improvement");
         const selected = window.getSelection().toString().trim();

@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Job Tracker Helper",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Collect browser-visible LinkedIn job cards into the local Job Tracker.",
   "permissions": ["activeTab", "alarms", "scripting", "tabs", "storage"],
   "host_permissions": [
     "https://www.linkedin.com/*",
-    "http://127.0.0.1:5000/*"
+    "http://127.0.0.1:5000/*",
+    "https://*.azurewebsites.net/*"
   ],
   "action": {
     "default_title": "Job Tracker Helper",

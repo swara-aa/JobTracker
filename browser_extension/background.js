@@ -1,5 +1,4 @@
-const IMPORT_URL = "http://127.0.0.1:5000/api/linkedin/import?defer_enrichment=1";
-const FINALIZE_URL = "http://127.0.0.1:5000/api/linkedin/finalize-collection";
+const DEFAULT_API_BASE_URL = "http://127.0.0.1:5000";
 const MAX_PAGE_LIMIT = 15;
 const PAGE_LOAD_RETRY_MS = 1000;
 const NEXT_PAGE_WAIT_MS = 10000;
@@ -15,6 +14,8 @@ const DEFAULT_SCHEDULE = {
   time: "08:00",
   maxPages: 12,
   searchUrl: "",
+  apiBaseUrl: DEFAULT_API_BASE_URL,
+  importToken: "",
   lastAttemptDate: "",
   lastAttemptAt: "",
   attemptCount: 0,
@@ -66,6 +67,10 @@ async function handleMessage(message) {
   if (message.type === "saveSchedule") {
     const schedule = await saveSchedule(message.schedule || {});
     await ensureScheduleAlarms(schedule);
+    return { ok: true, schedule };
+  }
+  if (message.type === "saveConnection") {
+    const schedule = await saveConnection(message.connection || {});
     return { ok: true, schedule };
   }
   if (message.type === "runScheduledNow") {
@@ -153,9 +158,10 @@ async function processPage() {
     ...state,
     message: `Found ${page.jobs.length} visible job card(s); saving them to Job Tracker...`,
   });
-  const response = await fetchWithTimeout(IMPORT_URL, {
+  const connection = await getConnection();
+  const response = await fetchWithTimeout(`${connection.apiBaseUrl}/api/linkedin/import?defer_enrichment=1`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders(connection),
     body: JSON.stringify(page.jobs),
   });
   const imported = await response.json();
@@ -213,9 +219,10 @@ function pause(milliseconds) {
 async function finish(state, reason) {
   let postprocessingMessage = "No new jobs need post-processing.";
   try {
-    const response = await fetchWithTimeout(FINALIZE_URL, {
+    const connection = await getConnection();
+    const response = await fetchWithTimeout(`${connection.apiBaseUrl}/api/linkedin/finalize-collection`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: apiHeaders(connection),
       body: JSON.stringify({
         links: state.newLinks || [],
         pagesVisited: state.pagesVisited,
@@ -279,6 +286,44 @@ async function getSchedule() {
   return { ...DEFAULT_SCHEDULE, ...(stored[SCHEDULE_KEY] || {}) };
 }
 
+async function getConnection() {
+  const schedule = await getSchedule();
+  return {
+    apiBaseUrl: normalizeApiBaseUrl(schedule.apiBaseUrl || DEFAULT_API_BASE_URL),
+    importToken: String(schedule.importToken || "").trim(),
+  };
+}
+
+async function saveConnection(input) {
+  const existing = await getSchedule();
+  const apiBaseUrl = normalizeApiBaseUrl(String(input.apiBaseUrl || DEFAULT_API_BASE_URL));
+  const importToken = String(input.importToken || "").trim();
+  const schedule = {
+    ...existing,
+    apiBaseUrl,
+    importToken,
+    lastResult: `Connection saved for ${apiBaseUrl}.`,
+  };
+  await chrome.storage.local.set({ [SCHEDULE_KEY]: schedule });
+  return schedule;
+}
+
+function apiHeaders(connection) {
+  const headers = { "Content-Type": "application/json" };
+  if (connection.importToken) {
+    headers.Authorization = `Bearer ${connection.importToken}`;
+  }
+  return headers;
+}
+
+function normalizeApiBaseUrl(value) {
+  const url = String(value || DEFAULT_API_BASE_URL).trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//.test(url)) {
+    throw new Error("Enter a Job Tracker URL that starts with http:// or https://.");
+  }
+  return url;
+}
+
 async function saveSchedule(input) {
   const time = /^\d{2}:\d{2}$/.test(String(input.time || "")) ? String(input.time) : "08:00";
   const [hour, minute] = time.split(":").map(Number);
@@ -299,6 +344,8 @@ async function saveSchedule(input) {
     time,
     maxPages: Math.min(MAX_PAGE_LIMIT, Math.max(1, Number(input.maxPages) || 12)),
     searchUrl,
+    apiBaseUrl: normalizeApiBaseUrl(input.apiBaseUrl || existing.apiBaseUrl || DEFAULT_API_BASE_URL),
+    importToken: String(input.importToken ?? existing.importToken ?? "").trim(),
     warning,
     lastResult: input.enabled ? existing.lastResult : "Daily collection is not enabled.",
   };
@@ -418,6 +465,14 @@ function waitForTabReady(tabId) {
 
 function readVisibleJobsPage() {
   const clean = (value) => (value || "").replace(/\s+/g, " ").trim();
+  const normalized = (value) => clean(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const firstText = (card, selectors) => {
+    for (const selector of selectors) {
+      const value = clean(card.querySelector(selector)?.textContent);
+      if (value) return value;
+    }
+    return "";
+  };
   const findNext = () => {
     const currentPage = document.querySelector('button[aria-current="true"][aria-label^="Page "]');
     const currentNumber = Number(currentPage?.getAttribute("aria-label")?.replace("Page ", ""));
@@ -439,9 +494,22 @@ function readVisibleJobsPage() {
       const jobId = card.getAttribute("componentkey")?.match(/(\d+)$/)?.[1];
       const lines = (card.innerText || "").split("\n").map(clean).filter((line) => line && line !== "·");
       if (!jobId || lines.length < 2) return null;
+      const title = firstText(card, [
+        '[data-view-name="job-card-title"]',
+        '.artdeco-entity-lockup__title',
+        '.job-card-list__title',
+        'a[href*="/jobs/view/"]',
+      ]) || lines[0];
+      const fallbackCompany = lines.slice(1).find((line) => normalized(line) !== normalized(title)) || "";
+      const company = firstText(card, [
+        '[data-view-name="job-card-company-name"]',
+        '.artdeco-entity-lockup__subtitle',
+        '.job-card-container__primary-description',
+        '.job-card-list__company-name',
+      ]) || fallbackCompany;
       return {
-        title: lines[0],
-        company: lines[1],
+        title,
+        company: normalized(company) === normalized(title) ? "Unknown company" : company || "Unknown company",
         location: lines.slice(2).find((line) => /United States|Remote|Hybrid|On-site|,\s*[A-Z]{2}\b/i.test(line)) || "Unknown location",
         posting_date_text: lines.slice(2).find((line) => /(?:minute|hour|day|week)s? ago|today|just now/i.test(line)) || "",
         link: `https://www.linkedin.com/jobs/view/${jobId}`,

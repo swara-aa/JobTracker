@@ -7,6 +7,7 @@ import sqlite3
 from typing import Any
 
 from job_agent.config import DB_PATH
+from job_agent.company_intelligence import get_company
 from job_agent.local_scorer import extract_skills, required_and_preferred_text, semantic_similarity
 from job_agent.storage import ensure_database, fetch_jobs, fetch_resumes
 
@@ -172,6 +173,7 @@ def _score_resume(job: dict[str, Any], resume: dict[str, object]) -> dict[str, A
         0,
         skill_score + role_score + qualification_score + overlap_score + evidence_score - requirement_penalty,
     )
+    score += _company_metadata_boost(job)
     semantic_score = semantic_similarity(resume_text, job_text)
     if semantic_score is not None:
         score = round(0.75 * score + 0.25 * semantic_score)
@@ -185,6 +187,28 @@ def _score_resume(job: dict[str, Any], resume: dict[str, object]) -> dict[str, A
         "hard_no_reasons": [],
         "semantic_score": semantic_score,
     }
+
+
+def _company_metadata_boost(job: dict[str, Any]) -> int:
+    """Apply modest company signals without penalizing unknown employers."""
+    company = get_company(str(job.get("company") or ""))
+    if not company:
+        return 0
+
+    job_text = _job_text(job)
+    role_boost = 0
+    if company.get("hires_software_engineers") is True and any(
+        term in job_text for term in ROLE_TERMS["software"]
+    ):
+        role_boost += 2
+    if company.get("hires_ai_ml") is True and any(term in job_text for term in ROLE_TERMS["ai_ml"]):
+        role_boost += 2
+    return (
+        (3 if company.get("visa_friendly") is True or company.get("sponsors_h1b") is True else 0)
+        + (3 if company.get("hires_entry_level") is True else 0)
+        + min(role_boost, 2)
+        + (1 if company.get("fortune_500") is True else 0)
+    )
 
 
 def _job_text(job: dict[str, Any]) -> str:

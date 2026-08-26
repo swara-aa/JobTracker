@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Analytics · Job Tracker</title>
+    <style>
+      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#64717d; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#196a51; }
+      * { box-sizing:border-box; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,#fffdf8 0%,transparent 35%),linear-gradient(180deg,#efe7da 0%,var(--bg) 100%); font-family:Georgia,"Times New Roman",serif; }
+      .page { max-width:1180px; margin:0 auto; padding:32px 20px 56px; }
+      .topbar,.tabs,.card-head { display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:center; }
+      h1 { margin:0 0 7px; font-size:clamp(2.2rem,5vw,4rem); line-height:1; }
+      h2 { margin:0; font-size:1.35rem; }
+      .subtitle,.muted { color:var(--muted); }
+      .subtitle { margin:0; }
+      .tabs { justify-content:flex-start; margin:24px 0; }
+      .link-button { display:inline-block; padding:10px 14px; border-radius:999px; background:var(--soft); color:var(--accent); text-decoration:none; }
+      .link-button.active { background:var(--accent); color:#fff; }
+      .metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; }
+      .metric,.card { background:var(--paper); border:1px solid var(--line); border-radius:18px; box-shadow:0 16px 40px rgba(31,41,51,.07); }
+      .metric { padding:18px; }
+      .metric strong { display:block; color:var(--accent); font-size:2rem; }
+      .metric span { color:var(--muted); }
+      .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-top:16px; }
+      .card { padding:22px; }
+      .full { grid-column:1 / -1; }
+      .bar-list { display:grid; gap:11px; margin-top:18px; }
+      .bar-row { display:grid; grid-template-columns:minmax(100px,190px) 1fr 42px; gap:10px; align-items:center; }
+      .label { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); }
+      .track { height:11px; overflow:hidden; background:#eadfd2; border-radius:999px; }
+      .fill { height:100%; min-width:2px; border-radius:999px; background:linear-gradient(90deg,var(--accent),#dc8b51); }
+      .count { text-align:right; font-weight:bold; }
+      .trend { display:grid; grid-template-columns:repeat({{ analytics.daily_trend|length }},minmax(8px,1fr)); align-items:end; gap:4px; height:190px; margin-top:20px; }
+      .day { position:relative; min-height:2px; border-radius:5px 5px 0 0; background:linear-gradient(180deg,#dc8b51,var(--accent)); cursor:help; }
+      .day:hover::after { content:attr(data-tooltip); position:absolute; z-index:2; left:50%; bottom:calc(100% + 8px); transform:translateX(-50%); width:max-content; max-width:170px; padding:7px 9px; border-radius:8px; color:#fff; background:var(--ink); box-shadow:0 7px 18px rgba(31,41,51,.25); font-size:.8rem; line-height:1.2; text-align:center; pointer-events:none; }
+      .legend { display:flex; justify-content:space-between; margin-top:9px; color:var(--muted); font-size:.88rem; }
+      .note { margin-top:14px; color:var(--muted); line-height:1.45; }
+      @media (max-width:720px) { .metrics,.grid { grid-template-columns:1fr; } .full { grid-column:auto; } .bar-row { grid-template-columns:minmax(80px,130px) 1fr 34px; } .trend { height:140px; } }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header class="topbar">
+        <div><h1>Job Search Analytics</h1><p class="subtitle">A local view of collection, coverage, pipeline movement, and where your opportunities are coming from.</p></div>
+        <nav><a class="link-button" href="/">Inbox</a> <a class="link-button" href="/jobs">Browse Jobs</a> <a class="link-button" href="/operations">Operations</a></nav>
+      </header>
+      <nav class="tabs" aria-label="Analytics period">
+        {% for value, label in periods.items() %}<a class="link-button {% if analytics.days == value %}active{% endif %}" href="/analytics?days={{ value }}">{{ label }}</a>{% endfor %}
+      </nav>
+
+      <section class="metrics" aria-label="Analytics overview">
+        <article class="metric"><strong>{{ analytics.overview.jobs_added }}</strong><span>jobs added in this period</span></article>
+        <article class="metric"><strong>{{ analytics.overview.jobs_added_today }}</strong><span>jobs added today</span></article>
+        <article class="metric"><strong>{{ analytics.overview.applied }}</strong><span>applications submitted in this period</span></article>
+        <article class="metric"><strong>{{ analytics.overview.descriptions_captured }}</strong><span>descriptions captured</span></article>
+        <article class="metric"><strong>{{ analytics.overview.locally_scored }}</strong><span>locally scored</span></article>
+        <article class="metric"><strong>{{ analytics.overview.gemini_scored }}</strong><span>Gemini resume scores</span></article>
+      </section>
+
+      <section class="grid">
+        <article class="card full">
+          <div class="card-head"><h2>Company &amp; visa snapshot</h2><span class="muted">{{ analytics.start_date }} through today</span></div>
+          <div class="metrics" aria-label="Company and visa signal totals">
+            <article class="metric"><strong>{{ analytics.overview.companies_seen }}</strong><span>companies seen</span></article>
+            <article class="metric"><strong>{{ analytics.overview.jobs_added }}</strong><span>job postings collected</span></article>
+            <article class="metric"><strong>{{ analytics.overview.companies_with_h1b_filings }}</strong><span>employers with FY2025 H-1B filings</span></article>
+            <article class="metric"><strong>{{ analytics.overview.postings_at_h1b_filing_employers }}</strong><span>postings at those employers</span></article>
+            <article class="metric"><strong>{{ analytics.overview.explicit_sponsorship_postings }}</strong><span>postings with explicit sponsorship wording</span></article>
+            <article class="metric"><strong>{{ analytics.overview.visa_unclear_or_unassessed }}</strong><span>visa unclear or not assessed</span></article>
+            <article class="metric"><strong>{{ analytics.overview.no_visa_hard_no }}</strong><span>no visa hard-no language</span></article>
+            <article class="metric"><strong>{{ analytics.overview.visa_hard_no }}</strong><span>visa hard no</span></article>
+          </div>
+          <p class="note">FY2025 filings show employer history, not a promise for an individual role. “No visa hard-no language” includes postings that are still unclear; review each posting before applying.</p>
+        </article>
+        <article class="card full">
+          <div class="card-head"><h2>Daily jobs added</h2><span class="muted">{{ analytics.start_date }} through today</span></div>
+          <div class="trend" aria-label="Daily jobs added chart">
+            {% for item in analytics.daily_trend %}<div class="day" role="img" aria-label="{{ item.day }}: {{ item.jobs }} jobs collected" title="{{ item.day }}: {{ item.jobs }} jobs collected" data-tooltip="{{ item.day }} · {{ item.jobs }} collected" style="height: {{ [2, (item.jobs * 100 / analytics.daily_max)|round(1)]|max }}%"></div>{% endfor %}
+          </div>
+          <div class="legend"><span>{{ analytics.daily_trend[0].day }}</span><span>Highest day: {{ analytics.daily_max }} jobs</span><span>{{ analytics.daily_trend[-1].day }}</span></div>
+        </article>
+        {% for title, items in [("Top locations", analytics.locations), ("Collection sources", analytics.sources), ("Role searches", analytics.role_queries), ("Match-score distribution", analytics.score_distribution), ("Application pipeline", analytics.pipeline)] %}
+        <article class="card">
+          <h2>{{ title }}</h2>
+          <div class="bar-list">
+            {% set maximum = (items|map(attribute='jobs')|max) if items else 1 %}
+            {% for item in items %}
+            <div class="bar-row"><span class="label" title="{{ item.label }}">{{ item.label }}</span><div class="track"><div class="fill" style="width: {{ (item.jobs * 100 / maximum)|round(1) }}%"></div></div><span class="count">{{ item.jobs }}</span></div>
+            {% else %}<p class="muted">No data in this period.</p>{% endfor %}
+          </div>
+        </article>
+        {% endfor %}
+      </section>
+      <p class="note">Analytics use jobs saved in your local SQLite database. “Gemini resume scores” means a saved best-resume comparison; job-description analysis has a separate status.</p>
+    </main>
+  </body>
+</html>

@@ -22,6 +22,8 @@ PUBLIC_CAPTURE_DELAY_SECONDS = 10 * 60
 PUBLIC_GEMINI_DELAY_SECONDS = 15 * 60
 RETRY_GEMINI_DELAY_SECONDS = 2 * 60
 MAX_DAILY_BATCH_SUBMISSIONS = 3
+MAX_DAILY_BATCH_FAILURES = 3
+GEMINI_SUBMISSION_STATE_VERSION = "batch-file-readiness-v2"
 _state_lock = Lock()
 _thread_lock = Lock()
 _wake = Event()
@@ -45,6 +47,39 @@ def start_automation_coordinator() -> dict[str, object]:
         )
         _thread.start()
     return automation_status()
+
+
+def run_automation_forever() -> None:
+    _runtime.update({"running": True, "phase": "starting", "last_error": ""})
+    while True:
+        try:
+            _tick()
+            state = _read_state()
+            state.update(
+                {
+                    "worker_mode": "azure-webjob",
+                    "worker_heartbeat_at": _now().isoformat(),
+                    "worker_last_error": "",
+                }
+            )
+            _write_state(state)
+            _runtime["last_error"] = ""
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Automation worker failed: %s", exc)
+            error = str(exc).replace("\n", " ")[:300]
+            _runtime["last_error"] = error
+            _runtime["phase"] = "waiting after error"
+            state = _read_state()
+            state.update(
+                {
+                    "worker_mode": "azure-webjob",
+                    "worker_heartbeat_at": _now().isoformat(),
+                    "worker_last_error": error,
+                }
+            )
+            _write_state(state)
+        _wake.wait(POLL_SECONDS)
+        _wake.clear()
 
 
 def schedule_linkedin_postprocessing(job_ids: list[int]) -> dict[str, object]:
@@ -97,7 +132,19 @@ def automation_status() -> dict[str, object]:
     state = _read_state()
     with _thread_lock:
         thread_running = bool(_thread and _thread.is_alive())
+    worker_recent = _worker_heartbeat_recent(str(state.get("worker_heartbeat_at") or ""))
+    if worker_recent:
+        runtime = dict(_runtime)
+        runtime["running"] = True
+        runtime["phase"] = str(state.get("worker_mode") or "azure-webjob")
+        runtime["last_error"] = str(state.get("worker_last_error") or "")
+        return state | runtime
     return state | dict(_runtime) | {"running": thread_running}
+
+
+def _worker_heartbeat_recent(value: str) -> bool:
+    heartbeat = _parse_time(value)
+    return bool(heartbeat and _now() - heartbeat < timedelta(minutes=5))
 
 
 def _run_loop() -> None:
@@ -119,6 +166,7 @@ def _tick() -> None:
     _bootstrap_pending_work()
     _maybe_collect_public_boards()
     _maybe_start_description_capture()
+    _maybe_score_described_jobs_locally()
     _maybe_refresh_gemini_batch()
     _maybe_submit_gemini_batch()
     if _runtime["phase"] not in {
@@ -162,6 +210,7 @@ def _bootstrap_pending_work() -> None:
         and not state.get("gemini_not_before")
         and can_run_gemini
         and int(state.get("batch_submissions") or 0) < MAX_DAILY_BATCH_SUBMISSIONS
+        and int(state.get("gemini_submission_failures") or 0) < MAX_DAILY_BATCH_FAILURES
     ):
         state["gemini_not_before"] = (
             now + timedelta(seconds=LINKEDIN_CAPTURE_COOLDOWN_SECONDS)
@@ -173,11 +222,30 @@ def _bootstrap_pending_work() -> None:
 
 
 def _reset_daily_batch_counter() -> None:
-    state = _read_state()
+    stored_state = _read_stored_state()
+    state = _default_state() | stored_state
+    if stored_state.get("gemini_submission_state_version") != GEMINI_SUBMISSION_STATE_VERSION:
+        state.update(
+            {
+                "gemini_submission_state_version": GEMINI_SUBMISSION_STATE_VERSION,
+                "batch_submissions": 0,
+                "gemini_submission_failures": 0,
+                "gemini_not_before": (_now() + timedelta(seconds=LINKEDIN_CAPTURE_COOLDOWN_SECONDS)).isoformat(),
+                "message": "Gemini batch recovery has been updated; preparing one safe retry.",
+            }
+        )
+        _write_state(state)
+        return
     today = _now().date().isoformat()
     if state.get("batch_date") == today:
         return
-    state.update({"batch_date": today, "batch_submissions": 0})
+    state.update(
+        {
+            "batch_date": today,
+            "batch_submissions": 0,
+            "gemini_submission_failures": 0,
+        }
+    )
     _write_state(state)
 
 
@@ -241,6 +309,24 @@ def _maybe_start_description_capture() -> None:
     _write_state(state)
 
 
+def _maybe_score_described_jobs_locally() -> None:
+    """Keep the no-cost score current even when Gemini is paused or unavailable."""
+    from job_agent.storage import described_job_ids_without_local_score, fetch_resumes
+
+    if not fetch_resumes():
+        return
+    job_ids = described_job_ids_without_local_score()
+    if not job_ids:
+        return
+    _runtime["phase"] = "updating local match scores"
+    from job_agent.local_scoring import score_jobs_locally
+
+    result = score_jobs_locally(job_ids)
+    state = _read_state()
+    state["message"] = f"Updated local match scores for {int(result['scored'])} described job(s)."
+    _write_state(state)
+
+
 def _maybe_refresh_gemini_batch() -> None:
     from job_agent.gemini_batch import batch_status
 
@@ -278,7 +364,6 @@ def _maybe_submit_gemini_batch() -> None:
     if not _time_reached(str(state.get("gemini_not_before") or "")):
         return
     from job_agent.gemini_batch import batch_status, submit_gemini_resume_batch
-    from job_agent.public_enrichment import overnight_public_backfill_status
     from job_agent.storage import (
         described_job_ids_without_gemini_match,
         fetch_resumes,
@@ -286,8 +371,6 @@ def _maybe_submit_gemini_batch() -> None:
 
     current_batch = batch_status(refresh=False)
     if current_batch.get("active") or current_batch.get("submission_in_progress"):
-        return
-    if overnight_public_backfill_status().get("running"):
         return
     if not get_user_setting("GEMINI_API_KEY") or not fetch_resumes():
         state.update(
@@ -309,6 +392,7 @@ def _maybe_submit_gemini_batch() -> None:
         _write_state(state)
         return
     submissions = int(state.get("batch_submissions") or 0)
+    failures = int(state.get("gemini_submission_failures") or 0)
     if submissions >= MAX_DAILY_BATCH_SUBMISSIONS:
         state.update(
             {
@@ -316,6 +400,18 @@ def _maybe_submit_gemini_batch() -> None:
                 "message": (
                     "Gemini retry limit reached for today. Remaining failures "
                     "will stay visible in Operations."
+                ),
+            }
+        )
+        _write_state(state)
+        return
+    if failures >= MAX_DAILY_BATCH_FAILURES:
+        state.update(
+            {
+                "gemini_not_before": "",
+                "message": (
+                    "Gemini submission failed three times today. Automatic retry resumes tomorrow; "
+                    "check Gemini billing and API region in Operations before forcing another submission."
                 ),
             }
         )
@@ -329,7 +425,6 @@ def _maybe_submit_gemini_batch() -> None:
     reassess_explicit_posting_language(job_ids)
     state.update(
         {
-            "batch_submissions": submissions + 1,
             "gemini_not_before": "",
             "message": f"Submitting {len(job_ids)} described job(s) to Gemini Batch...",
         }
@@ -341,17 +436,32 @@ def _maybe_submit_gemini_batch() -> None:
         state = _read_state()
         state.update(
             {
+                "gemini_submission_failures": failures + 1,
                 "gemini_not_before": (
                     _now() + timedelta(minutes=15)
                 ).isoformat(),
-                "message": f"Gemini submission will retry: {str(exc)[:180]}",
+                "message": _gemini_submission_failure_message(exc, failures + 1),
             }
         )
         _write_state(state)
         return
     state = _read_state()
-    state["message"] = str(batch["message"])
+    state.update(
+        {
+            "batch_submissions": submissions + 1,
+            "gemini_submission_failures": 0,
+            "message": str(batch["message"]),
+        }
+    )
     _write_state(state)
+
+
+def _gemini_submission_failure_message(error: Exception, failures: int) -> str:
+    detail = str(error).replace("\n", " ")[:180]
+    guidance = ""
+    if "FAILED_PRECONDITION" in detail.upper():
+        guidance = " Check Gemini billing and that the API is available from this server region."
+    return f"Gemini submission attempt {failures}/{MAX_DAILY_BATCH_FAILURES} failed: {detail}.{guidance} Retrying in 15 minutes."
 
 
 def _automation_time() -> tuple[int, int]:
@@ -397,17 +507,25 @@ def _default_state() -> dict[str, object]:
         "last_batch_refresh_at": "",
         "batch_date": "",
         "batch_submissions": 0,
+        "gemini_submission_failures": 0,
+        "gemini_submission_state_version": GEMINI_SUBMISSION_STATE_VERSION,
+        "worker_mode": "",
+        "worker_heartbeat_at": "",
+        "worker_last_error": "",
         "message": "Automation coordinator is starting.",
     }
 
 
 def _read_state() -> dict[str, object]:
+    return _default_state() | _read_stored_state()
+
+
+def _read_stored_state() -> dict[str, object]:
     with _state_lock:
         try:
-            stored = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            return json.loads(STATE_PATH.read_text(encoding="utf-8"))
         except (FileNotFoundError, json.JSONDecodeError):
-            stored = {}
-    return _default_state() | stored
+            return {}
 
 
 def _write_state(state: dict[str, object]) -> None:

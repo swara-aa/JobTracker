@@ -41,4 +41,5 @@ def _posting_key(job: dict[str, object]) -> tuple[str, str, str]:
 
 
 def _normalized(value: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", value.lower())
+    without_badges = re.sub(r"\(verified job\)", "", value, flags=re.IGNORECASE)
+    return re.sub(r"[^a-z0-9]+", "", without_badges.lower())

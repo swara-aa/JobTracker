@@ -14,6 +14,8 @@
       <key>JOBTRACKER_PROJECT_DIR</key>
       <string>__PROJECT_DIR__</string>
     </dict>
+    <key>WorkingDirectory</key>
+    <string>__PROJECT_DIR__</string>
     <key>StartCalendarInterval</key>
     <dict>
       <key>Hour</key>
@@ -23,8 +25,10 @@
     </dict>
     <key>RunAtLoad</key>
     <true/>
-    <key>StartInterval</key>
-    <integer>300</integer>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
     <key>ProcessType</key>
     <string>Interactive</string>
     <key>StandardOutPath</key>

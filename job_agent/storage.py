@@ -4,6 +4,7 @@ import sqlite3
 import logging
 import json
 import re
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Iterable
 
@@ -154,6 +155,20 @@ def ensure_database() -> None:
                 hard_no INTEGER NOT NULL DEFAULT 0,
                 hard_no_reasons TEXT NOT NULL DEFAULT '[]',
                 analyzed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (job_id, resume_id),
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
+                FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS application_helpers (
+                job_id INTEGER NOT NULL,
+                resume_id INTEGER NOT NULL,
+                content TEXT NOT NULL DEFAULT '{}',
+                model TEXT NOT NULL DEFAULT '',
+                generated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (job_id, resume_id),
                 FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE,
                 FOREIGN KEY (resume_id) REFERENCES resumes(id) ON DELETE CASCADE
@@ -359,6 +374,25 @@ def described_job_ids_without_gemini_match() -> list[int]:
     return [int(row[0]) for row in rows]
 
 
+def described_job_ids_without_local_score(limit: int = 200) -> list[int]:
+    """Return described, active jobs that still need an offline resume score."""
+    ensure_database()
+    with sqlite3.connect(DB_PATH) as connection:
+        rows = connection.execute(
+            """
+            SELECT id
+            FROM jobs
+            WHERE application_status != 'Closed'
+              AND trim(description) != ''
+              AND local_match_score IS NULL
+            ORDER BY posting_date DESC, id DESC
+            LIMIT ?
+            """,
+            (max(1, int(limit)),),
+        ).fetchall()
+    return [int(row[0]) for row in rows]
+
+
 def save_linkedin_descriptions(items: Iterable[dict[str, str]]) -> list[int]:
     ensure_database()
     updated_job_ids: list[int] = []
@@ -480,6 +514,126 @@ def fetch_job(job_id: int) -> dict[str, object] | None:
         connection.row_factory = sqlite3.Row
         row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row) if row else None
+
+
+def analytics_summary(days: int = 30) -> dict[str, object]:
+    """Return lightweight, local-only dashboard analytics for a recent time window."""
+    safe_days = max(7, min(int(days), 365))
+    today = datetime.now(timezone.utc).date()
+    start_date = today - timedelta(days=safe_days - 1)
+    start_value = start_date.isoformat()
+    today_value = today.isoformat()
+    ensure_database()
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+        overview = dict(
+            connection.execute(
+                """
+                SELECT
+                    COUNT(*) AS jobs_added,
+                    COALESCE(SUM(CASE WHEN substr(collected_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS jobs_added_today,
+                    COALESCE(SUM(CASE WHEN trim(description) <> '' THEN 1 ELSE 0 END), 0) AS descriptions_captured,
+                    COALESCE(SUM(CASE WHEN local_match_score IS NOT NULL THEN 1 ELSE 0 END), 0) AS locally_scored,
+                    COALESCE(SUM(CASE WHEN matches.job_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS gemini_scored,
+                    COALESCE(SUM(CASE WHEN applied_date >= ? THEN 1 ELSE 0 END), 0) AS applied,
+                    COUNT(DISTINCT CASE WHEN trim(company) <> '' THEN lower(trim(company)) END) AS companies_seen,
+                    COUNT(DISTINCT CASE WHEN h1b_filings > 0 AND trim(company) <> '' THEN lower(trim(company)) END) AS companies_with_h1b_filings,
+                    COALESCE(SUM(CASE WHEN h1b_filings > 0 THEN 1 ELSE 0 END), 0) AS postings_at_h1b_filing_employers,
+                    COALESCE(SUM(CASE WHEN visa_assessment LIKE 'Yes - explicit sponsorship%' THEN 1 ELSE 0 END), 0) AS explicit_sponsorship_postings,
+                    COALESCE(SUM(CASE WHEN trim(visa_assessment) = '' OR visa_assessment LIKE 'Unclear -%' OR visa_assessment = 'Employer missing' THEN 1 ELSE 0 END), 0) AS visa_unclear_or_unassessed,
+                    COALESCE(SUM(CASE WHEN visa_assessment NOT LIKE 'No -%' THEN 1 ELSE 0 END), 0) AS no_visa_hard_no,
+                    COALESCE(SUM(CASE WHEN visa_assessment LIKE 'No -%' THEN 1 ELSE 0 END), 0) AS visa_hard_no
+                FROM jobs
+                LEFT JOIN resume_job_matches AS matches
+                  ON matches.job_id = jobs.id AND matches.is_best = 1
+                WHERE substr(collected_at, 1, 10) >= ?
+                """,
+                (today_value, start_value, start_value),
+            ).fetchone()
+        )
+        daily_rows = connection.execute(
+            """
+            SELECT substr(collected_at, 1, 10) AS day, COUNT(*) AS jobs
+            FROM jobs
+            WHERE substr(collected_at, 1, 10) >= ?
+            GROUP BY day
+            ORDER BY day
+            """,
+            (start_value,),
+        ).fetchall()
+        daily_counts = {str(row["day"]): int(row["jobs"]) for row in daily_rows}
+        daily_trend = [
+            {"day": (start_date + timedelta(days=offset)).isoformat(), "jobs": daily_counts.get((start_date + timedelta(days=offset)).isoformat(), 0)}
+            for offset in range(safe_days)
+        ]
+
+        def breakdown(column: str) -> list[dict[str, object]]:
+            rows = connection.execute(
+                f"""
+                SELECT COALESCE(NULLIF(trim({column}), ''), 'Unknown') AS label, COUNT(*) AS jobs
+                FROM jobs
+                WHERE substr(collected_at, 1, 10) >= ?
+                GROUP BY label
+                ORDER BY jobs DESC, label ASC
+                LIMIT 8
+                """,
+                (start_value,),
+            ).fetchall()
+            return [{"label": str(row["label"]), "jobs": int(row["jobs"])} for row in rows]
+
+        pipeline_rows = connection.execute(
+            """
+            SELECT application_status AS label, COUNT(*) AS jobs
+            FROM jobs
+            GROUP BY application_status
+            ORDER BY jobs DESC, label ASC
+            """
+        ).fetchall()
+        score_rows = connection.execute(
+            """
+            SELECT
+                CASE
+                    WHEN matches.score IS NOT NULL THEN matches.score
+                    ELSE jobs.local_match_score
+                END AS score
+            FROM jobs
+            LEFT JOIN resume_job_matches AS matches
+              ON matches.job_id = jobs.id AND matches.is_best = 1
+            WHERE substr(jobs.collected_at, 1, 10) >= ?
+            """,
+            (start_value,),
+        ).fetchall()
+
+    score_distribution = {"90–100": 0, "75–89": 0, "60–74": 0, "Below 60": 0, "Not scored": 0}
+    for row in score_rows:
+        score = row["score"]
+        if score is None:
+            score_distribution["Not scored"] += 1
+        elif int(score) >= 90:
+            score_distribution["90–100"] += 1
+        elif int(score) >= 75:
+            score_distribution["75–89"] += 1
+        elif int(score) >= 60:
+            score_distribution["60–74"] += 1
+        else:
+            score_distribution["Below 60"] += 1
+
+    return {
+        "days": safe_days,
+        "start_date": start_value,
+        "overview": {key: int(value or 0) for key, value in overview.items()},
+        "daily_trend": daily_trend,
+        "daily_max": max((item["jobs"] for item in daily_trend), default=1) or 1,
+        "locations": breakdown("location"),
+        "sources": breakdown("source"),
+        "role_queries": breakdown("role_query"),
+        "pipeline": [
+            {"label": str(row["label"]), "jobs": int(row["jobs"])} for row in pipeline_rows
+        ],
+        "score_distribution": [
+            {"label": label, "jobs": count} for label, count in score_distribution.items()
+        ],
+    }
 
 
 def distinct_values(column: str) -> list[str]:
@@ -622,3 +776,42 @@ def fetch_resume_matches(job_id: int) -> list[dict[str, object]]:
             (job_id,),
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+def fetch_application_helper(job_id: int, resume_id: int) -> dict[str, object] | None:
+    ensure_database()
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """
+            SELECT job_id, resume_id, content, model, generated_at
+            FROM application_helpers
+            WHERE job_id = ? AND resume_id = ?
+            """,
+            (job_id, resume_id),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def save_application_helper(
+    *,
+    job_id: int,
+    resume_id: int,
+    content: dict[str, object],
+    model: str,
+    generated_at: str,
+) -> None:
+    ensure_database()
+    with sqlite3.connect(DB_PATH) as connection:
+        connection.execute(
+            """
+            INSERT INTO application_helpers (job_id, resume_id, content, model, generated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(job_id, resume_id) DO UPDATE SET
+                content = excluded.content,
+                model = excluded.model,
+                generated_at = excluded.generated_at
+            """,
+            (job_id, resume_id, json.dumps(content), model, generated_at),
+        )
+        connection.commit()

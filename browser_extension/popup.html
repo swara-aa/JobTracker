@@ -54,6 +54,14 @@
     <button id="stop" class="secondary hidden" type="button">Stop collection</button>
     <p id="status">Keep the local Flask app running, then start collection.</p>
     <section class="schedule">
+      <h2>Connection</h2>
+      <label for="api-base-url">Job Tracker URL</label>
+      <input id="api-base-url" type="url" value="http://127.0.0.1:5000">
+      <label for="import-token">Cloud import token</label>
+      <input id="import-token" type="password" autocomplete="off" placeholder="Required for Azure">
+      <button id="save-connection" class="secondary" type="button">Save connection</button>
+    </section>
+    <section class="schedule">
       <h2>Daily automatic collection</h2>
       <label class="check-row" for="schedule-enabled"><input id="schedule-enabled" type="checkbox"> Run once every morning</label>
       <label for="schedule-time">Collection time</label>

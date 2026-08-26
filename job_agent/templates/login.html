@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Sign in · Job Tracker</title>
+    <style>
+      :root { color: #202b36; background: #f4efe7; font-family: Georgia, "Times New Roman", serif; }
+      * { box-sizing: border-box; }
+      body { display: grid; min-height: 100vh; margin: 0; place-items: center; padding: 24px; }
+      main { width: min(100%, 440px); padding: 42px; border: 1px solid #e2d6c7; border-radius: 22px; background: #fffaf2; box-shadow: 0 16px 40px #452b1c16; }
+      h1 { margin: 0 0 10px; font-size: 2rem; }
+      p { color: #66717c; line-height: 1.5; }
+      label { display: block; margin: 28px 0 8px; font-weight: 700; }
+      input { width: 100%; padding: 13px; border: 1px solid #cfc1af; border-radius: 9px; font: inherit; }
+      button { width: 100%; margin-top: 20px; padding: 13px; border: 0; border-radius: 9px; background: #b73e2b; color: white; cursor: pointer; font: inherit; font-weight: 700; }
+      .error { color: #a1261e; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Job Tracker</h1>
+      <p>This private workspace contains your job-search data.</p>
+      {% if error %}<p class="error">{{ error }}</p>{% endif %}
+      <form method="post" action="{{ url_for('login') }}">
+        <input type="hidden" name="next" value="{{ next_url }}">
+        <label for="password">Access password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        <button type="submit">Sign in</button>
+      </form>
+    </main>
+  </body>
+</html>

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import secrets
+from hmac import compare_digest
 from datetime import date, datetime, timedelta, timezone
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, url_for
+from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
 from job_agent.linkedin_review import (
     build_manual_job,
@@ -18,11 +21,14 @@ from job_agent.config import (
     configured_boards,
     get_user_setting,
 )
+from job_agent.company_intelligence import get_company_attributes, initialize_company_intelligence
 from job_agent.posting_quality import verification_reasons_by_job
 from job_agent.storage import (
     delete_resume,
+    analytics_summary,
     distinct_values,
     fetch_job,
+    fetch_application_helper,
     fetch_jobs,
     fetch_resume_matches,
     fetch_resumes,
@@ -34,6 +40,7 @@ from job_agent.storage import (
     save_jobs,
     skill_gap_summary,
     update_job_pipeline,
+    ensure_database,
 )
 from job_agent.resume_library import extract_resume
 
@@ -42,11 +49,15 @@ MAX_RADAR_SCORE_BATCH = 30
 GEMINI_SCORE_BASE_BATCH = 20
 RADAR_PAGE_SIZE = 50
 PRIORITY_QUEUE_LIMIT = 10
+INBOX_URGENT_FRESHNESS_BONUS = 8
+INBOX_RECENT_FRESHNESS_BONUS = 4
+INBOX_FORTUNE_500_BONUS = 3
 POSTED_WITHIN_OPTIONS = {
     "24h": ("Last 24 hours", timedelta(hours=24)),
     "week": ("Past week", timedelta(days=7)),
     "month": ("Past month", timedelta(days=30)),
 }
+ANALYTICS_PERIODS = {7: "Past 7 days", 30: "Past 30 days", 90: "Past 90 days"}
 ACTIONABLE_PIPELINE_STATUSES = {"Saved", "Tailor Resume"}
 APPLICATION_STATUSES = [
     "Saved",
@@ -60,38 +71,74 @@ APPLICATION_STATUSES = [
 ]
 
 
-def _is_priority_job(job: dict[str, object]) -> bool:
+def _posted_at(job: dict[str, object]) -> datetime | None:
     try:
         posted_at = datetime.fromisoformat(str(job["posting_date"]).replace("Z", "+00:00"))
         if posted_at.tzinfo is None:
             posted_at = posted_at.replace(tzinfo=timezone.utc)
     except (KeyError, TypeError, ValueError):
+        return None
+    return posted_at.astimezone(timezone.utc)
+
+
+def _is_priority_job(job: dict[str, object]) -> bool:
+    posted_at = _posted_at(job)
+    if posted_at is None:
         return True
-    return datetime.now(timezone.utc) - posted_at.astimezone(timezone.utc) <= timedelta(
-        days=PRIORITY_WINDOW_DAYS
+    return datetime.now(timezone.utc) - posted_at <= timedelta(days=PRIORITY_WINDOW_DAYS)
+
+
+def _priority_urgency_bonus(
+    job: dict[str, object],
+    *,
+    now: datetime | None = None,
+) -> int:
+    posted_at = _posted_at(job)
+    if posted_at is None:
+        return 0
+    age = (now or datetime.now(timezone.utc)) - posted_at
+    if age <= timedelta(hours=24):
+        return INBOX_URGENT_FRESHNESS_BONUS
+    if age <= timedelta(days=3):
+        return INBOX_RECENT_FRESHNESS_BONUS
+    return 0
+
+
+def _priority_company_bonus(job: dict[str, object]) -> int:
+    company = get_company_attributes(str(job.get("company") or ""))
+    return INBOX_FORTUNE_500_BONUS if company.get("fortune_500") is True else 0
+
+
+def _priority_sort_key(
+    job: dict[str, object],
+    *,
+    now: datetime | None = None,
+) -> tuple[int, int, bool, str]:
+    match_score = int(_effective_match_score(job) or 0)
+    return (
+        match_score + _priority_urgency_bonus(job, now=now) + _priority_company_bonus(job),
+        match_score,
+        job.get("application_status") == "Tailor Resume",
+        str(job["posting_date"]),
     )
 
 
 def _build_priority_queue(jobs: list[dict[str, object]]) -> list[dict[str, object]]:
+    verification_reasons = verification_reasons_by_job(jobs)
     actionable_jobs = [
         job
         for job in jobs
         if _is_priority_job(job)
         and job.get("application_status") in ACTIONABLE_PIPELINE_STATUSES
         and not _has_match_hard_no(job)
+        and int(job["id"]) not in verification_reasons
         and _effective_match_score(job) is not None
     ]
-    actionable_jobs.sort(
-        key=lambda job: (
-            int(_effective_match_score(job) or 0),
-            job.get("application_status") == "Tailor Resume",
-            str(job["posting_date"]),
-        ),
-        reverse=True,
-    )
+    actionable_jobs.sort(key=_priority_sort_key, reverse=True)
     for job in actionable_jobs:
         job["best_match_score"] = _effective_match_score(job)
         job["best_match_source"] = _effective_match_source(job)
+        job["is_fortune_500"] = _priority_company_bonus(job) > 0
     return actionable_jobs[:PRIORITY_QUEUE_LIMIT]
 
 
@@ -151,9 +198,104 @@ def _filter_dashboard_jobs(
     return filtered_jobs
 
 
+def _matches_company_tier(job: dict[str, object], company_tier: str) -> bool:
+    if company_tier != "fortune500":
+        return True
+    return get_company_attributes(str(job.get("company") or "")).get("fortune_500") is True
+
+
+def _access_control_enabled() -> bool:
+    return os.getenv("JOBTRACKER_AUTH_REQUIRED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def _extension_import_token_valid() -> bool:
+    configured_token = get_user_setting("JOBTRACKER_EXTENSION_IMPORT_TOKEN")
+    if not configured_token:
+        return False
+    supplied_token = request.headers.get("X-JobTracker-Import-Token", "").strip()
+    authorization = request.headers.get("Authorization", "").strip()
+    if authorization.lower().startswith("bearer "):
+        supplied_token = authorization[7:].strip()
+    return bool(supplied_token) and compare_digest(supplied_token, configured_token)
+
+
+def _is_linkedin_import_endpoint() -> bool:
+    return request.endpoint in {
+        "linkedin_import_api",
+        "linkedin_finalize_collection_api",
+        "linkedin_descriptions_api",
+    }
+
+
+def _safe_next_url(value: str) -> str:
+    if value.startswith("/") and not value.startswith("//"):
+        return value
+    return url_for("index")
+
+
 def create_app() -> Flask:
+    initialize_company_intelligence()
     app = Flask(__name__)
+    app.config["SECRET_KEY"] = get_user_setting("FLASK_SECRET_KEY") or secrets.token_urlsafe(48)
     app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
+    app.config["AUTH_REQUIRED"] = _access_control_enabled()
+
+    @app.before_request
+    def require_private_access():
+        if request.method == "OPTIONS":
+            return None
+        if not app.config["AUTH_REQUIRED"]:
+            return None
+        if request.endpoint in {"health_check", "login", "static"}:
+            return None
+        if _is_linkedin_import_endpoint() and _extension_import_token_valid():
+            return None
+        if session.get("jobtracker_authenticated") is True:
+            return None
+        if _is_linkedin_import_endpoint():
+            return jsonify({"error": "A valid JobTracker import token is required."}), 401
+        return redirect(url_for("login", next=request.full_path))
+
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        if not app.config["AUTH_REQUIRED"]:
+            return redirect(url_for("index"))
+
+        next_url = _safe_next_url(request.values.get("next", ""))
+        if request.method == "POST":
+            configured_password = get_user_setting("JOBTRACKER_ACCESS_PASSWORD")
+            supplied_password = request.form.get("password", "")
+            if configured_password and compare_digest(supplied_password, configured_password):
+                session.clear()
+                session["jobtracker_authenticated"] = True
+                return redirect(next_url)
+            return render_template("login.html", error="Incorrect password.", next_url=next_url), 401
+
+        return render_template("login.html", error="", next_url=next_url)
+
+    @app.post("/logout")
+    def logout():
+        session.clear()
+        return redirect(url_for("login"))
+
+    @app.get("/api/health")
+    def health_check():
+        try:
+            ensure_database()
+        except Exception as exc:
+            return jsonify({"status": "degraded", "error": str(exc)[:160]}), 503
+        return jsonify(
+            {
+                "status": "ok",
+                "service": "jobtracker",
+                "release": os.getenv("JOBTRACKER_RELEASE_VERSION", "local"),
+            }
+        )
 
     @app.template_filter("relative_time")
     def relative_time(value: str) -> str:
@@ -216,11 +358,26 @@ def create_app() -> Flask:
             message=request.args.get("message", "").strip(),
         )
 
+    @app.route("/analytics")
+    def analytics():
+        try:
+            days = int(request.args.get("days", "30"))
+        except ValueError:
+            days = 30
+        if days not in ANALYTICS_PERIODS:
+            days = 30
+        return render_template(
+            "analytics.html",
+            analytics=analytics_summary(days),
+            periods=ANALYTICS_PERIODS,
+        )
+
     @app.route("/jobs")
     def browse_jobs():
         role = request.args.get("role", "").strip()
         location = request.args.get("location", "").strip()
         company = request.args.get("company", "").strip()
+        company_tier = request.args.get("company_tier", "").strip()
         visa = request.args.get("visa", "").strip()
         application_status = request.args.get("application_status", "").strip()
         view = request.args.get("view", "").strip()
@@ -276,6 +433,9 @@ def create_app() -> Flask:
         matching_jobs = _filter_dashboard_jobs(
             matching_jobs, posted_within, minimum_score, maximum_score
         )
+        matching_jobs = [
+            job for job in matching_jobs if _matches_company_tier(job, company_tier)
+        ]
         if showing_closed:
             matching_jobs = [job for job in matching_jobs if job.get("application_status") == "Closed"]
         elif showing_verification:
@@ -327,6 +487,7 @@ def create_app() -> Flask:
                 "role": role,
                 "location": location,
                 "company": company,
+                "company_tier": company_tier,
                 "visa": visa,
                 "application_status": application_status,
                 "sort": sort,
@@ -349,6 +510,7 @@ def create_app() -> Flask:
         role = request.form.get("role", "").strip()
         location = request.form.get("location", "").strip()
         company = request.form.get("company", "").strip()
+        company_tier = request.form.get("company_tier", "").strip()
         visa = request.form.get("visa", "").strip()
         application_status = request.form.get("application_status", "").strip()
         view = request.form.get("view", "").strip()
@@ -369,6 +531,11 @@ def create_app() -> Flask:
             for job in _filter_dashboard_jobs(
                 matching_jobs, posted_within, minimum_score, maximum_score
             )
+            if _matches_company_tier(job, company_tier)
+        ]
+        candidates = [
+            job
+            for job in candidates
             if job.get("application_status") != "Closed"
             and int(job["id"]) not in verification_reasons
             and job.get("resume_match_score") is None
@@ -403,6 +570,7 @@ def create_app() -> Flask:
                 role=role,
                 location=location,
                 company=company,
+                company_tier=company_tier,
                 visa=visa,
                 application_status=application_status,
                 sort=sort,
@@ -621,11 +789,28 @@ def create_app() -> Flask:
                     match[field] = json.loads(str(match.get(field) or "[]"))
                 except json.JSONDecodeError:
                     match[field] = []
+        resumes = fetch_resumes()
+        selected_resume_id = next(
+            (int(match["resume_id"]) for match in resume_matches if match.get("is_best")),
+            int(job["local_match_resume_id"]) if job.get("local_match_resume_id") else None,
+        )
+        if selected_resume_id is None and resumes:
+            selected_resume_id = int(resumes[0]["id"])
+        application_helper = (
+            fetch_application_helper(job_id, selected_resume_id) if selected_resume_id is not None else None
+        )
+        if application_helper:
+            try:
+                application_helper["content"] = json.loads(str(application_helper["content"]))
+            except json.JSONDecodeError:
+                application_helper = None
         return render_template(
             "job_detail.html",
             job=job,
-            resumes=fetch_resumes(),
+            resumes=resumes,
             resume_matches=resume_matches,
+            selected_resume_id=selected_resume_id,
+            application_helper=application_helper,
             application_statuses=APPLICATION_STATUSES,
             gemini_configured=bool(get_user_setting("GEMINI_API_KEY")),
             message=request.args.get("message", ""),
@@ -659,6 +844,26 @@ def create_app() -> Flask:
             )
         except Exception as exc:  # noqa: BLE001
             return redirect(url_for("job_detail", job_id=job_id, error=str(exc)))
+
+    @app.post("/jobs/<int:job_id>/application-helper")
+    def create_application_helper(job_id: int):
+        from job_agent.application_helper import generate_application_helper
+
+        try:
+            resume_id = int(request.form.get("resume_id", ""))
+            generate_application_helper(job_id, resume_id)
+            return redirect(
+                url_for(
+                    "job_detail",
+                    job_id=job_id,
+                    message="Personalized application helper and cover letter created.",
+                )
+                + "#application-helper"
+            )
+        except (TypeError, ValueError) as exc:
+            return redirect(url_for("job_detail", job_id=job_id, error=str(exc)) + "#application-helper")
+        except Exception as exc:  # noqa: BLE001
+            return redirect(url_for("job_detail", job_id=job_id, error=str(exc)) + "#application-helper")
 
     @app.post("/jobs/<int:job_id>/pipeline")
     def update_pipeline(job_id: int):
