@@ -5,10 +5,13 @@ import json
 import logging
 from pathlib import Path
 from threading import Event, Lock, Thread
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_agent.config import (
     AUTOMATION_PUBLIC_COLLECTION_TIME,
     DATA_DIR,
+    DIGEST_SEND_TIME,
+    DIGEST_TIMEZONE,
     get_user_setting,
 )
 
@@ -169,11 +172,13 @@ def _tick() -> None:
     _maybe_score_described_jobs_locally()
     _maybe_refresh_gemini_batch()
     _maybe_submit_gemini_batch()
+    _maybe_send_daily_digests()
     if _runtime["phase"] not in {
         "collecting public boards",
         "starting description capture",
         "preparing Gemini batch",
         "refreshing Gemini batch",
+        "sending daily digests",
     }:
         _runtime["phase"] = "monitoring"
 
@@ -456,6 +461,32 @@ def _maybe_submit_gemini_batch() -> None:
     _write_state(state)
 
 
+def _maybe_send_daily_digests() -> None:
+    now = _digest_now()
+    today = now.date().isoformat()
+    state = _read_state()
+    if state.get("last_digest_date") == today:
+        return
+    hour, minute = _digest_time()
+    if (now.hour, now.minute) < (hour, minute):
+        return
+    _runtime["phase"] = "sending daily digests"
+    from job_agent.digest import send_daily_job_digests
+
+    result = send_daily_job_digests()
+    state.update(
+        {
+            "last_digest_date": today,
+            "last_digest_finished_at": _now().isoformat(),
+            "message": (
+                f"Daily digest sent to {result['sent']} subscriber(s); "
+                f"{result['skipped']} skipped; {result['failures']} failed."
+            ),
+        }
+    )
+    _write_state(state)
+
+
 def _gemini_submission_failure_message(error: Exception, failures: int) -> str:
     detail = str(error).replace("\n", " ")[:180]
     guidance = ""
@@ -473,6 +504,24 @@ def _automation_time() -> tuple[int, int]:
     except (TypeError, ValueError):
         pass
     return 7, 56
+
+
+def _digest_time() -> tuple[int, int]:
+    try:
+        hour, minute = DIGEST_SEND_TIME.split(":", 1)
+        parsed = int(hour), int(minute)
+        if 0 <= parsed[0] <= 23 and 0 <= parsed[1] <= 59:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return 8, 0
+
+
+def _digest_now() -> datetime:
+    try:
+        return datetime.now(ZoneInfo(DIGEST_TIMEZONE))
+    except ZoneInfoNotFoundError:
+        return _now()
 
 
 def _time_reached(value: str) -> bool:
@@ -509,6 +558,8 @@ def _default_state() -> dict[str, object]:
         "batch_submissions": 0,
         "gemini_submission_failures": 0,
         "gemini_submission_state_version": GEMINI_SUBMISSION_STATE_VERSION,
+        "last_digest_date": "",
+        "last_digest_finished_at": "",
         "worker_mode": "",
         "worker_heartbeat_at": "",
         "worker_last_error": "",

@@ -39,6 +39,10 @@ class AccessControlTests(unittest.TestCase):
         response = self.client.get("/api/health")
         self.assertEqual(response.status_code, 200)
 
+    def test_digest_signup_stays_public(self) -> None:
+        response = self.client.get("/digest-signup")
+        self.assertEqual(response.status_code, 200)
+
     def test_correct_password_opens_dashboard(self) -> None:
         response = self.client.post("/login", data={"password": "test-password", "next": "/"})
         self.assertEqual(response.status_code, 302)

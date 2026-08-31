@@ -180,6 +180,38 @@ def ensure_database() -> None:
             )
             """
         )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS digest_subscribers (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                name TEXT NOT NULL DEFAULT '',
+                roles TEXT NOT NULL DEFAULT '[]',
+                location TEXT NOT NULL DEFAULT '',
+                resume_filename TEXT NOT NULL DEFAULT '',
+                resume_content TEXT NOT NULL,
+                active INTEGER NOT NULL DEFAULT 1,
+                unsubscribe_token TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_sent_at TEXT NOT NULL DEFAULT ''
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS digest_deliveries (
+                subscriber_id INTEGER NOT NULL,
+                job_id INTEGER NOT NULL,
+                sent_on TEXT NOT NULL,
+                score INTEGER NOT NULL DEFAULT 0,
+                score_source TEXT NOT NULL DEFAULT '',
+                sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (subscriber_id, job_id),
+                FOREIGN KEY (subscriber_id) REFERENCES digest_subscribers(id) ON DELETE CASCADE,
+                FOREIGN KEY (job_id) REFERENCES jobs(id) ON DELETE CASCADE
+            )
+            """
+        )
         existing_match_columns = {
             row[1]
             for row in connection.execute("PRAGMA table_info(resume_job_matches)").fetchall()

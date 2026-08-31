@@ -18,9 +18,11 @@ from job_agent.config import (
     AUTOMATION_PUBLIC_COLLECTION_TIME,
     GREENHOUSE_BOARDS,
     LEVER_SITES,
+    ROLE_QUERIES,
     configured_boards,
     get_user_setting,
 )
+from job_agent.classification import ROLE_FAMILIES
 from job_agent.company_intelligence import get_company_attributes, initialize_company_intelligence
 from job_agent.posting_quality import verification_reasons_by_job
 from job_agent.storage import (
@@ -232,6 +234,16 @@ def _is_linkedin_import_endpoint() -> bool:
     }
 
 
+def _public_endpoint() -> bool:
+    return request.endpoint in {
+        "health_check",
+        "login",
+        "static",
+        "digest_signup",
+        "digest_unsubscribe",
+    }
+
+
 def _safe_next_url(value: str) -> str:
     if value.startswith("/") and not value.startswith("//"):
         return value
@@ -251,7 +263,7 @@ def create_app() -> Flask:
             return None
         if not app.config["AUTH_REQUIRED"]:
             return None
-        if request.endpoint in {"health_check", "login", "static"}:
+        if _public_endpoint():
             return None
         if _is_linkedin_import_endpoint() and _extension_import_token_valid():
             return None
@@ -295,6 +307,64 @@ def create_app() -> Flask:
                 "service": "jobtracker",
                 "release": os.getenv("JOBTRACKER_RELEASE_VERSION", "local"),
             }
+        )
+
+    @app.route("/digest-signup", methods=["GET", "POST"])
+    def digest_signup():
+        from job_agent.digest import subscribe_to_digest
+
+        error = ""
+        message = ""
+        role_options = sorted({label for label, _ in ROLE_FAMILIES}.union(ROLE_QUERIES))
+        selected_roles: list[str] = []
+        if request.method == "POST":
+            try:
+                uploads = [file for file in request.files.getlist("resume") if file.filename]
+                if not uploads:
+                    raise ValueError("Upload a resume to receive personalized matches.")
+                filename, content = extract_resume(uploads[0])
+                selected_roles = [
+                    role.strip()
+                    for role in request.form.getlist("roles")
+                    if role.strip()
+                ]
+                custom_role = request.form.get("custom_role", "").strip()
+                if custom_role:
+                    selected_roles.append(custom_role)
+                subscribe_to_digest(
+                    email=request.form.get("email", ""),
+                    name=request.form.get("name", ""),
+                    roles=selected_roles,
+                    location=request.form.get("location", ""),
+                    resume_filename=filename,
+                    resume_content=content,
+                )
+                message = "You are signed up for daily job matches."
+            except Exception as exc:  # noqa: BLE001
+                error = str(exc)
+        return render_template(
+            "digest_signup.html",
+            error=error,
+            message=message,
+            role_options=role_options,
+            selected_roles=set(selected_roles),
+        )
+
+    @app.get("/digest/unsubscribe/<token>")
+    def digest_unsubscribe(token: str):
+        from job_agent.digest import unsubscribe_digest
+
+        message = (
+            "You have been unsubscribed from daily job matches."
+            if unsubscribe_digest(token)
+            else "This unsubscribe link is no longer active."
+        )
+        return render_template(
+            "digest_signup.html",
+            error="",
+            message=message,
+            role_options=[],
+            selected_roles=set(),
         )
 
     @app.template_filter("relative_time")

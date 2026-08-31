@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Daily Job Matches · JobTracker</title>
+    <style>
+      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#64717d; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#196a51; }
+      * { box-sizing:border-box; }
+      body { margin:0; color:var(--ink); background:linear-gradient(180deg,#efe7da 0%,var(--bg) 100%); font-family:Georgia,"Times New Roman",serif; }
+      main { width:min(100%,760px); margin:0 auto; padding:42px 20px 64px; }
+      h1 { margin:0 0 8px; font-size:clamp(2.1rem,5vw,3.4rem); line-height:1; }
+      p { color:var(--muted); line-height:1.5; }
+      .panel { margin-top:24px; padding:24px; border:1px solid var(--line); border-radius:18px; background:var(--paper); box-shadow:0 16px 40px rgba(31,41,51,.07); }
+      label { display:block; margin:16px 0 7px; font-weight:700; }
+      input { width:100%; padding:12px; border:1px solid #cfc1af; border-radius:9px; background:#fff; font:inherit; }
+      button { margin-top:20px; width:100%; border:0; border-radius:999px; padding:13px 16px; color:#fff; background:var(--accent); font:inherit; font-weight:700; cursor:pointer; }
+      .roles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; margin-top:8px; }
+      .role { display:flex; gap:8px; align-items:center; color:var(--ink); font-weight:400; }
+      .role input { width:auto; }
+      .notice { padding:13px 16px; border-radius:13px; color:var(--good); background:#d8efe4; }
+      .error { padding:13px 16px; border-radius:13px; color:#8b2e24; background:#fbe8e4; }
+      @media (max-width:640px) { .roles { grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Daily Job Matches</h1>
+      <p>Upload a resume, choose the fields you want, and receive the strongest new job matches every morning.</p>
+      {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+      {% if error %}<div class="error">{{ error }}</div>{% endif %}
+      {% if role_options %}
+      <form class="panel" method="post" enctype="multipart/form-data">
+        <label for="name">Name</label>
+        <input id="name" name="name" autocomplete="name">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required>
+        <label for="location">Preferred location</label>
+        <input id="location" name="location" placeholder="Remote, California, Dallas, New York">
+        <label>Roles and fields</label>
+        <div class="roles">
+          {% for role in role_options %}
+          <label class="role"><input type="checkbox" name="roles" value="{{ role }}" {% if role in selected_roles %}checked{% endif %}> {{ role }}</label>
+          {% endfor %}
+        </div>
+        <label for="custom_role">Other role</label>
+        <input id="custom_role" name="custom_role" placeholder="e.g. Lab Technician, Paralegal, Teacher">
+        <label for="resume">Resume</label>
+        <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt" required>
+        <button type="submit">Sign Up For Daily Matches</button>
+      </form>
+      {% endif %}
+    </main>
+  </body>
+</html>
