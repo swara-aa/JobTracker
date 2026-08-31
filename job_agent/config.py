@@ -99,10 +99,18 @@ def configured_boards(value: str) -> list[tuple[str, str]]:
             boards.append((token.strip(), (label.strip() or token.strip())))
     return boards
 
-ROLE_QUERIES = [
-    "Software Engineer",
-    "AI/ML Engineer",
-]
+def _csv_values(value: str, fallback: list[str]) -> list[str]:
+    values = [item.strip() for item in value.split(",") if item.strip()]
+    return values or fallback
+
+
+ROLE_QUERIES = _csv_values(
+    os.getenv("JOB_AGENT_ROLE_QUERIES", ""),
+    [
+        "Software Engineer",
+        "AI/ML Engineer",
+    ],
+)
 
 USA_LOCATION_KEYWORDS = [
     "united states",

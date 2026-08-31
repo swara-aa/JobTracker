@@ -197,6 +197,7 @@ export COMPANY_INTELLIGENCE_ENABLED=true
 export COMPANY_DATABASE_PATH=config/companies.csv
 
 # Optional public company boards: comma-separated board-or-site-token:Display Name
+export JOB_AGENT_ROLE_QUERIES="Software Engineer,AI/ML Engineer,Marketing Coordinator,Financial Analyst"
 export JOB_AGENT_GREENHOUSE_BOARDS="board-token:Company Name,another-token:Another Company"
 export JOB_AGENT_LEVER_SITES="site-token:Company Name,another-site:Another Company"
 

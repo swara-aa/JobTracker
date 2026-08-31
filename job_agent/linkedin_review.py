@@ -5,6 +5,7 @@ import json
 import re
 from typing import Any
 
+from job_agent.classification import infer_role_family
 from job_agent.filters import normalize_text, utc_now
 from job_agent.models import JobPosting
 
@@ -78,19 +79,7 @@ def build_manual_job(
 
 
 def infer_role_query(title: str) -> str:
-    normalized = normalize_text(title)
-    if any(
-        phrase in normalized
-        for phrase in [
-            "machine learning engineer",
-            "ai engineer",
-            "ml engineer",
-            "artificial intelligence engineer",
-            "ai/ml engineer",
-        ]
-    ):
-        return "AI/ML Engineer"
-    return "Software Engineer"
+    return infer_role_family(title)
 
 
 def parse_linkedin_posting_date(value: str) -> datetime:

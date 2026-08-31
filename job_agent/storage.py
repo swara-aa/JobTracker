@@ -8,6 +8,11 @@ from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from typing import Iterable
 
+from job_agent.classification import (
+    infer_role_family,
+    location_filter_options,
+    location_matches,
+)
 from job_agent.config import DB_PATH
 from job_agent.models import JobPosting
 
@@ -188,6 +193,7 @@ def ensure_database() -> None:
                 connection.execute(
                     f"ALTER TABLE resume_job_matches ADD COLUMN {column} {definition}"
                 )
+        _refresh_legacy_role_queries(connection)
         connection.commit()
 
 
@@ -205,6 +211,7 @@ def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
             "SELECT source, title, company, location FROM jobs"
         ).fetchall()
         for job in jobs:
+            role_query = job.role_query.strip() or infer_role_family(job.title, job.description)
             if _matches_existing_cross_source_posting(job, existing_postings):
                 continue
             cursor = connection.execute(
@@ -218,7 +225,7 @@ def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
                 """,
                 (
                     job.source,
-                    job.role_query,
+                    role_query,
                     job.title,
                     job.company,
                     job.location,
@@ -248,6 +255,23 @@ def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
             logger.warning("Saved jobs but could not update visa assessments: %s", exc)
 
     return saved_job_ids
+
+
+def _refresh_legacy_role_queries(connection: sqlite3.Connection) -> None:
+    rows = connection.execute(
+        """
+        SELECT id, role_query, title, description
+        FROM jobs
+        WHERE role_query IN ('', 'Software Engineer', 'AI/ML Engineer')
+        """
+    ).fetchall()
+    for job_id, role_query, title, description in rows:
+        updated_role = infer_role_family(str(title or ""), str(description or ""))
+        if updated_role and updated_role != role_query:
+            connection.execute(
+                "UPDATE jobs SET role_query = ? WHERE id = ?",
+                (updated_role, int(job_id)),
+            )
 
 
 def _matches_existing_cross_source_posting(
@@ -480,7 +504,6 @@ def fetch_jobs(
         LEFT JOIN resume_job_matches AS matches
           ON matches.job_id = jobs.id AND matches.is_best = 1
         WHERE (? = '' OR jobs.role_query = ?)
-          AND (? = '' OR lower(jobs.location) LIKE '%' || lower(?) || '%')
           AND (? = '' OR lower(jobs.company) LIKE '%' || lower(?) || '%')
           AND (? = '' OR jobs.visa_assessment = ?)
           AND (? = '' OR jobs.application_status = ?)
@@ -494,8 +517,6 @@ def fetch_jobs(
             (
                 role,
                 role,
-                location,
-                location,
                 company,
                 company,
                 visa,
@@ -505,7 +526,10 @@ def fetch_jobs(
             ),
         ).fetchall()
 
-    return [dict(row) for row in rows]
+    jobs = [dict(row) for row in rows]
+    if location:
+        jobs = [job for job in jobs if location_matches(str(job.get("location") or ""), location)]
+    return jobs
 
 
 def fetch_job(job_id: int) -> dict[str, object] | None:
@@ -657,7 +681,10 @@ def distinct_values(column: str) -> list[str]:
             """
         ).fetchall()
 
-    return [row[0] for row in rows]
+    values = [row[0] for row in rows]
+    if column == "location":
+        return location_filter_options(values)
+    return values
 
 
 def update_job_pipeline(
