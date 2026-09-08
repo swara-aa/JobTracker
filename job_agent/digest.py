@@ -12,6 +12,7 @@ from typing import Any
 from job_agent import config
 from job_agent.classification import infer_role_family, location_matches
 from job_agent.config import DB_PATH, get_user_setting
+from job_agent.database import backend_name, connect
 from job_agent.gemini_analysis import API_URL, DEFAULT_MODEL, _post_with_retries
 from job_agent.local_scoring import _score_resume
 from job_agent.storage import ensure_database, fetch_jobs
@@ -65,8 +66,8 @@ def subscribe_to_digest(
 
     ensure_database()
     token = secrets.token_urlsafe(32)
-    with sqlite3.connect(DB_PATH) as connection:
-        cursor = connection.execute(
+    with connect() as connection:
+        connection.execute(
             """
             INSERT INTO digest_subscribers (
                 email, name, roles, location, resume_filename,
@@ -90,33 +91,30 @@ def subscribe_to_digest(
                 token,
             ),
         )
-        if cursor.lastrowid:
-            subscriber_id = int(cursor.lastrowid)
-        else:
-            row = connection.execute(
-                "SELECT id FROM digest_subscribers WHERE email = ?",
-                (normalized_email,),
-            ).fetchone()
-            subscriber_id = int(row[0])
-        connection.commit()
+        row = connection.execute(
+            "SELECT id FROM digest_subscribers WHERE email = ?",
+            (normalized_email,),
+        ).fetchone()
+        subscriber_id = int(row[0])
     return {"id": subscriber_id, "email": normalized_email, "roles": cleaned_roles}
 
 
 def unsubscribe_digest(token: str) -> bool:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         cursor = connection.execute(
             "UPDATE digest_subscribers SET active = 0 WHERE unsubscribe_token = ?",
             (str(token or "").strip(),),
         )
-        connection.commit()
     return bool(cursor.rowcount)
 
 
 def active_digest_subscribers() -> list[dict[str, object]]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    _migrate_legacy_sqlite_subscribers()
+    with connect() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
             SELECT *
@@ -132,6 +130,53 @@ def active_digest_subscribers() -> list[dict[str, object]]:
         except json.JSONDecodeError:
             subscriber["roles"] = []
     return subscribers
+
+
+def _migrate_legacy_sqlite_subscribers() -> None:
+    if backend_name() != "postgresql" or not DB_PATH.exists():
+        return
+    try:
+        with sqlite3.connect(DB_PATH) as source:
+            source.row_factory = sqlite3.Row
+            rows = source.execute(
+                """
+                SELECT email, name, roles, location, resume_filename,
+                       resume_content, active, unsubscribe_token
+                FROM digest_subscribers
+                WHERE active = 1
+                """
+            ).fetchall()
+    except sqlite3.Error:
+        return
+    if not rows:
+        return
+    with connect() as target:
+        for row in rows:
+            target.execute(
+                """
+                INSERT INTO digest_subscribers (
+                    email, name, roles, location, resume_filename,
+                    resume_content, active, unsubscribe_token
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(email) DO UPDATE SET
+                    name = excluded.name,
+                    roles = excluded.roles,
+                    location = excluded.location,
+                    resume_filename = excluded.resume_filename,
+                    resume_content = excluded.resume_content,
+                    active = excluded.active
+                """,
+                (
+                    row["email"],
+                    row["name"],
+                    row["roles"],
+                    row["location"],
+                    row["resume_filename"],
+                    row["resume_content"],
+                    int(row["active"]),
+                    row["unsubscribe_token"],
+                ),
+            )
 
 
 def send_daily_job_digests() -> dict[str, int]:
@@ -318,7 +363,7 @@ def _role_matches(job: dict[str, object], roles: list[str]) -> bool:
 
 def _delivered_job_ids(subscriber_id: int) -> set[int]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         rows = connection.execute(
             "SELECT job_id FROM digest_deliveries WHERE subscriber_id = ?",
             (subscriber_id,),
@@ -329,13 +374,14 @@ def _delivered_job_ids(subscriber_id: int) -> set[int]:
 def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> None:
     today = datetime.now(timezone.utc).date().isoformat()
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         for match in matches:
             connection.execute(
                 """
-                INSERT OR IGNORE INTO digest_deliveries (
+                INSERT INTO digest_deliveries (
                     subscriber_id, job_id, sent_on, score, score_source
                 ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(subscriber_id, job_id) DO NOTHING
                 """,
                 (
                     subscriber_id,
@@ -349,7 +395,6 @@ def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> 
             "UPDATE digest_subscribers SET last_sent_at = CURRENT_TIMESTAMP WHERE id = ?",
             (subscriber_id,),
         )
-        connection.commit()
 
 
 def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:

@@ -51,6 +51,10 @@
         {% else %}<p>Described, non-closed jobs are submitted as one asynchronous Gemini Batch job after collection settles. Results are monitored and imported automatically; this manual action is only a fallback.</p><form method="post" action="/jobs/submit-gemini-batch"><button type="submit">Submit Gemini Batch Now</button></form>{% endif %}
         {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
       </section>
+      <section class="panel"><h2>Daily Email Digest</h2>
+        <p>Sends the top 10 matching jobs to every active subscriber immediately. The normal automatic send still runs once per day at 8:00 AM Central.</p>
+        <form method="post" action="/operations/send-digest-now"><button type="submit">Send Digest Now</button></form>
+      </section>
       <section class="panel"><h2>Public Description Capture</h2>
         {% if overnight_status.running %}<div class="notice"><strong>{{ overnight_status.message }}</strong><br>{{ overnight_status.completed }} complete · {{ overnight_status.remaining }} remaining · {{ overnight_status.unavailable }} unavailable</div><form method="post" action="/jobs/stop-overnight-public-backfill"><button type="submit">Stop Capture</button></form>
         {% else %}<p>Captures public details for jobs that do not yet have a description. No Gemini calls are made.</p><form method="post" action="/jobs/start-overnight-public-backfill"><button type="submit">Start Background Capture</button></form><form method="post" action="/jobs/backfill-public-details"><button type="submit">Capture Next 15 Jobs</button></form>{% endif %}

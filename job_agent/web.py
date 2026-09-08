@@ -740,6 +740,20 @@ def create_app() -> Flask:
         except Exception as exc:  # noqa: BLE001
             return redirect(url_for("operations", message=str(exc)))
 
+    @app.post("/operations/send-digest-now")
+    def send_digest_now():
+        from job_agent.digest import send_daily_job_digests
+
+        try:
+            result = send_daily_job_digests()
+            message = (
+                f"Daily digest sent to {result['sent']} subscriber(s); "
+                f"{result['skipped']} skipped; {result['failures']} failed."
+            )
+            return redirect(url_for("operations", message=message))
+        except Exception as exc:  # noqa: BLE001
+            return redirect(url_for("operations", message=str(exc)))
+
     @app.post("/jobs/backfill-public-details")
     def backfill_public_details():
         from job_agent.public_enrichment import enqueue_public_description_backfill
