@@ -14,13 +14,22 @@ from job_agent.classification import (
     location_matches,
 )
 from job_agent.config import DB_PATH
+from job_agent.database import backend_name, postgres_connection
 from job_agent.models import JobPosting
+from job_agent.postgres_schema import schema_statements
 
 
 logger = logging.getLogger(__name__)
 
 
 def ensure_database() -> None:
+    if backend_name() == "postgresql":
+        with postgres_connection() as connection:
+            for statement in schema_statements():
+                connection.execute(statement)
+            connection.commit()
+        return
+
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(DB_PATH) as connection:
         connection.execute(
