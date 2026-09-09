@@ -745,7 +745,7 @@ def create_app() -> Flask:
         from job_agent.digest import send_daily_job_digests
 
         try:
-            result = send_daily_job_digests()
+            result = send_daily_job_digests(use_gemini=False)
             message = (
                 f"Daily digest sent to {result['sent']} subscriber(s); "
                 f"{result['skipped']} skipped; {result['failures']} failed."

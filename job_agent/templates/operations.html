@@ -52,7 +52,7 @@
         {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
       </section>
       <section class="panel"><h2>Daily Email Digest</h2>
-        <p>Sends the top 10 matching jobs to every active subscriber immediately. The normal automatic send still runs once per day at 8:00 AM Central.</p>
+        <p>Sends the top 10 matching jobs to every active subscriber immediately using the fast local scorer. The normal automatic send still runs once per day at 8:00 AM Central.</p>
         <form method="post" action="/operations/send-digest-now"><button type="submit">Send Digest Now</button></form>
       </section>
       <section class="panel"><h2>Public Description Capture</h2>

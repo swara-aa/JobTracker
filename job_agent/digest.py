@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 import json
+import logging
 import re
 import secrets
 import smtplib
@@ -22,6 +23,8 @@ DIGEST_LIMIT = 10
 MAX_CANDIDATES = 30
 MAX_DIGEST_DESCRIPTION_LENGTH = 5000
 MAX_DIGEST_RESUME_LENGTH = 12000
+SMTP_TIMEOUT_SECONDS = 8
+logger = logging.getLogger(__name__)
 
 DIGEST_SCORE_SCHEMA = {
     "type": "object",
@@ -179,24 +182,29 @@ def _migrate_legacy_sqlite_subscribers() -> None:
             )
 
 
-def send_daily_job_digests() -> dict[str, int]:
+def send_daily_job_digests(*, use_gemini: bool = True) -> dict[str, int]:
     sent = 0
     skipped = 0
     failures = 0
     for subscriber in active_digest_subscribers():
         try:
-            result = send_digest_to_subscriber(subscriber)
+            result = send_digest_to_subscriber(subscriber, use_gemini=use_gemini)
             if result["sent"]:
                 sent += 1
             else:
                 skipped += 1
-        except Exception:
+        except Exception as exc:
+            logger.exception("Daily digest failed for subscriber %s: %s", subscriber.get("id"), exc)
             failures += 1
     return {"sent": sent, "skipped": skipped, "failures": failures}
 
 
-def send_digest_to_subscriber(subscriber: dict[str, object]) -> dict[str, object]:
-    matches = top_digest_matches(subscriber)
+def send_digest_to_subscriber(
+    subscriber: dict[str, object],
+    *,
+    use_gemini: bool = True,
+) -> dict[str, object]:
+    matches = top_digest_matches(subscriber, use_gemini=use_gemini)
     if not matches:
         return {"sent": False, "matches": []}
     if not (config.SMTP_HOST and config.SMTP_USERNAME):
@@ -209,7 +217,7 @@ def send_digest_to_subscriber(subscriber: dict[str, object]) -> dict[str, object
     message["To"] = email
     message.set_content(_plain_digest(subscriber, matches))
     message.add_alternative(_html_digest(subscriber, matches), subtype="html")
-    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=30) as server:
+    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
         server.starttls()
         server.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
         server.send_message(message)
@@ -217,7 +225,11 @@ def send_digest_to_subscriber(subscriber: dict[str, object]) -> dict[str, object
     return {"sent": True, "matches": matches}
 
 
-def top_digest_matches(subscriber: dict[str, object]) -> list[dict[str, object]]:
+def top_digest_matches(
+    subscriber: dict[str, object],
+    *,
+    use_gemini: bool = True,
+) -> list[dict[str, object]]:
     roles = [str(role) for role in subscriber.get("roles", []) if str(role).strip()]
     location = str(subscriber.get("location") or "").strip()
     resume = {
@@ -247,7 +259,11 @@ def top_digest_matches(subscriber: dict[str, object]) -> list[dict[str, object]]
         for job in candidates
     ]
     local_ranked.sort(key=lambda item: int(item["score"]), reverse=True)
-    gemini_ranked = _score_digest_with_gemini(resume, local_ranked[:DIGEST_LIMIT])
+    gemini_ranked = (
+        _score_digest_with_gemini(resume, local_ranked[:DIGEST_LIMIT])
+        if use_gemini
+        else []
+    )
     return (gemini_ranked or local_ranked)[:DIGEST_LIMIT]
 
 
