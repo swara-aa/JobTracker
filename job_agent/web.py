@@ -336,6 +336,7 @@ def create_app() -> Flask:
                 subscribe_to_digest(
                     email=request.form.get("email", ""),
                     name=request.form.get("name", ""),
+                    plan=request.form.get("plan", "free"),
                     roles=selected_roles,
                     location=request.form.get("location", ""),
                     resume_filename=filename,

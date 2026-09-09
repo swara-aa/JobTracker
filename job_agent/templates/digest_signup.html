@@ -18,6 +18,11 @@
       .roles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; margin-top:8px; }
       .role { display:flex; gap:8px; align-items:center; color:var(--ink); font-weight:400; }
       .role input { width:auto; }
+      .plans { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:10px; }
+      .plan { border:1px solid var(--line); border-radius:14px; padding:16px; background:#fff; font-weight:400; }
+      .plan input { width:auto; margin-right:8px; }
+      .plan strong { display:block; color:var(--accent); margin-bottom:6px; }
+      .plan span { display:block; color:var(--muted); line-height:1.35; }
       .notice { padding:13px 16px; border-radius:13px; color:var(--good); background:#d8efe4; }
       .error { padding:13px 16px; border-radius:13px; color:#8b2e24; background:#fbe8e4; }
       @media (max-width:640px) { .roles { grid-template-columns:1fr; } }
@@ -26,7 +31,7 @@
   <body>
     <main>
       <h1>Daily Job Matches</h1>
-      <p>Upload a resume, choose the fields you want, and receive the strongest new job matches every morning.</p>
+      <p>Upload a resume, choose the fields you want, and receive the strongest new job matches every morning. Start free, then use Pro Preview for richer scoring while billing is being added.</p>
       {% if message %}<div class="notice">{{ message }}</div>{% endif %}
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
       {% if role_options %}
@@ -35,6 +40,19 @@
         <input id="name" name="name" autocomplete="name">
         <label for="email">Email</label>
         <input id="email" name="email" type="email" autocomplete="email" required>
+        <label>Plan</label>
+        <div class="plans">
+          <label class="plan">
+            <input type="radio" name="plan" value="free" checked>
+            <strong>Free</strong>
+            <span>Top 10 jobs/day, local match score, why it matched, matched skills, apply link.</span>
+          </label>
+          <label class="plan">
+            <input type="radio" name="plan" value="pro">
+            <strong>Pro Preview</strong>
+            <span>Top 25 jobs/day, richer job details, missing skills, salary/source details, Gemini scoring when available.</span>
+          </label>
+        </div>
         <label for="location">Preferred location</label>
         <input id="location" name="location" placeholder="Remote, California, Dallas, New York">
         <label>Roles and fields</label>

@@ -19,7 +19,8 @@ from job_agent.local_scoring import _score_resume
 from job_agent.storage import ensure_database, fetch_jobs
 
 
-DIGEST_LIMIT = 10
+FREE_DIGEST_LIMIT = 10
+PRO_DIGEST_LIMIT = 25
 MAX_CANDIDATES = 30
 MAX_DIGEST_DESCRIPTION_LENGTH = 5000
 MAX_DIGEST_RESUME_LENGTH = 12000
@@ -58,9 +59,11 @@ def subscribe_to_digest(
     location: str,
     resume_filename: str,
     resume_content: str,
+    plan: str = "free",
 ) -> dict[str, object]:
     normalized_email = _normalize_email(email)
     cleaned_roles = [role.strip() for role in roles if role.strip()]
+    normalized_plan = _normalize_plan(plan)
     if not normalized_email:
         raise ValueError("Enter a valid email address.")
     if not cleaned_roles:
@@ -74,11 +77,12 @@ def subscribe_to_digest(
         connection.execute(
             """
             INSERT INTO digest_subscribers (
-                email, name, roles, location, resume_filename,
+                email, name, plan, roles, location, resume_filename,
                 resume_content, active, unsubscribe_token
-            ) VALUES (?, ?, ?, ?, ?, ?, 1, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
             ON CONFLICT(email) DO UPDATE SET
                 name = excluded.name,
+                plan = excluded.plan,
                 roles = excluded.roles,
                 location = excluded.location,
                 resume_filename = excluded.resume_filename,
@@ -88,6 +92,7 @@ def subscribe_to_digest(
             (
                 normalized_email,
                 name.strip(),
+                normalized_plan,
                 json.dumps(cleaned_roles),
                 location.strip(),
                 resume_filename.strip(),
@@ -100,7 +105,12 @@ def subscribe_to_digest(
             (normalized_email,),
         ).fetchone()
         subscriber_id = int(row[0])
-    return {"id": subscriber_id, "email": normalized_email, "roles": cleaned_roles}
+    return {
+        "id": subscriber_id,
+        "email": normalized_email,
+        "roles": cleaned_roles,
+        "plan": normalized_plan,
+    }
 
 
 def unsubscribe_digest(token: str) -> bool:
@@ -159,11 +169,12 @@ def _migrate_legacy_sqlite_subscribers() -> None:
             target.execute(
                 """
                 INSERT INTO digest_subscribers (
-                    email, name, roles, location, resume_filename,
+                    email, name, plan, roles, location, resume_filename,
                     resume_content, active, unsubscribe_token
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(email) DO UPDATE SET
                     name = excluded.name,
+                    plan = excluded.plan,
                     roles = excluded.roles,
                     location = excluded.location,
                     resume_filename = excluded.resume_filename,
@@ -173,6 +184,7 @@ def _migrate_legacy_sqlite_subscribers() -> None:
                 (
                     row["email"],
                     row["name"],
+                    "free",
                     row["roles"],
                     row["location"],
                     row["resume_filename"],
@@ -213,7 +225,8 @@ def send_digest_to_subscriber(
 
     email = str(subscriber["email"])
     message = EmailMessage()
-    message["Subject"] = "Your top 10 job matches for today"
+    limit = _digest_limit(subscriber)
+    message["Subject"] = f"Your top {limit} job matches for today"
     message["From"] = config.SMTP_USERNAME
     message["To"] = email
     message.set_content(_plain_digest(subscriber, matches))
@@ -244,6 +257,8 @@ def top_digest_matches(
     *,
     use_gemini: bool = True,
 ) -> list[dict[str, object]]:
+    limit = _digest_limit(subscriber)
+    pro_plan = _is_pro_plan(subscriber)
     roles = [str(role) for role in subscriber.get("roles", []) if str(role).strip()]
     location = str(subscriber.get("location") or "").strip()
     resume = {
@@ -267,18 +282,18 @@ def top_digest_matches(
         ),
         reverse=True,
     )
-    candidates = jobs[:MAX_CANDIDATES]
+    candidates = jobs[: max(MAX_CANDIDATES, limit)]
     local_ranked = [
         _format_digest_match(job, _score_resume(job, resume), "local")
         for job in candidates
     ]
     local_ranked.sort(key=lambda item: int(item["score"]), reverse=True)
     gemini_ranked = (
-        _score_digest_with_gemini(resume, local_ranked[:DIGEST_LIMIT])
-        if use_gemini
+        _score_digest_with_gemini(resume, local_ranked[:limit])
+        if use_gemini and pro_plan
         else []
     )
-    return (gemini_ranked or local_ranked)[:DIGEST_LIMIT]
+    return (gemini_ranked or local_ranked)[:limit]
 
 
 def _score_digest_with_gemini(
@@ -433,37 +448,41 @@ def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> 
 
 def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:
     name = str(subscriber.get("name") or "there").strip()
+    pro_plan = _is_pro_plan(subscriber)
     lines = [
         f"Hi {name},",
         "",
-        "Here are your top job matches for today. Scores are based on your resume, role preferences, location preference, and posting text.",
+        f"Here are your top {len(matches)} job matches for today. Scores are based on your resume, role preferences, location preference, and posting text.",
         "",
     ]
+    if not pro_plan:
+        lines.extend(["Free plan: upgrade to Pro for more jobs, richer explanations, salary/source details, and Gemini scoring when available.", ""])
     for index, match in enumerate(matches, start=1):
         matched_skills = _format_list(match.get("matched_skills"))
         missing_skills = _format_list(match.get("missing_skills"))
         details = _format_job_details(match)
         description = _short_description(match)
-        lines.extend(
-            [
-                f"{index}. {match['title']} at {match['company']} - {match['score']}/100 ({match['score_source']})",
-                f"   Role: {match['role_query']}",
-                f"   Location: {match['location']}",
+        lines.extend([
+            f"{index}. {match['title']} at {match['company']} - {match['score']}/100 ({match['score_source']})",
+            f"   Role: {match['role_query']}",
+            f"   Location: {match['location']}",
+            f"   Why: {match['rationale']}",
+            f"   Matched skills: {matched_skills}",
+        ])
+        if pro_plan:
+            lines.extend([
                 f"   Details: {details}",
-                f"   Why: {match['rationale']}",
-                f"   Matched skills: {matched_skills}",
                 f"   Missing/weak signals: {missing_skills}",
                 f"   Description: {description}",
-                f"   Apply: {match['link']}",
-                "",
-            ]
-        )
+            ])
+        lines.extend([f"   Apply: {match['link']}", ""])
     lines.append("You are receiving this because you subscribed to JobTracker daily matches.")
     return "\n".join(lines)
 
 
 def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:
     name = str(subscriber.get("name") or "there").strip()
+    pro_plan = _is_pro_plan(subscriber)
     items = []
     for match in matches:
         details = _format_job_details(match)
@@ -478,11 +497,9 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
                 <div style="color:#53616f;margin:3px 0 8px;">{_escape(match['company'])} · {_escape(match['location'])}</div>
                 <div style="display:inline-block;background:#f5d9cb;color:#8a3b2f;border-radius:999px;padding:5px 10px;font-weight:bold;">{match['score']}/100 {_escape(match['score_source'])} match</div>
                 <div style="margin-top:10px;color:#202b36;"><strong>Role:</strong> {_escape(match['role_query'])}</div>
-                <div style="color:#202b36;"><strong>Details:</strong> {_escape(details)}</div>
                 <div style="margin-top:8px;color:#202b36;"><strong>Why it matched:</strong> {_escape(match['rationale'])}</div>
                 <div style="margin-top:8px;color:#196a51;"><strong>Matched skills:</strong> {_escape(matched_skills)}</div>
-                <div style="color:#805300;"><strong>Missing/weak signals:</strong> {_escape(missing_skills)}</div>
-                <div style="margin-top:8px;color:#53616f;"><strong>Posting snapshot:</strong> {_escape(description)}</div>
+                {_pro_html_details(details, missing_skills, description) if pro_plan else ''}
                 <div style="margin-top:10px;"><a href="{_escape(match['link'])}" style="color:#aa3a2a;font-weight:bold;">View job</a></div>
               </td>
             </tr>
@@ -492,6 +509,7 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
     <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
       <h1 style="margin:0 0 12px;">Your top job matches</h1>
       <p>Hi {_escape(name)}, here are the best new matches for your resume today. Scores use your resume, role preferences, location preference, and posting text.</p>
+      {_free_upgrade_html() if not pro_plan else ''}
       <table width="100%" cellspacing="0" cellpadding="0">{''.join(items)}</table>
     </div>
     """
@@ -515,6 +533,34 @@ def _normalize_email(value: str) -> str:
 
 def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(value).lower())).strip()
+
+
+def _normalize_plan(value: str) -> str:
+    return "pro" if str(value or "").strip().lower() == "pro" else "free"
+
+
+def _is_pro_plan(subscriber: dict[str, object]) -> bool:
+    return _normalize_plan(str(subscriber.get("plan") or "")) == "pro"
+
+
+def _digest_limit(subscriber: dict[str, object]) -> int:
+    return PRO_DIGEST_LIMIT if _is_pro_plan(subscriber) else FREE_DIGEST_LIMIT
+
+
+def _pro_html_details(details: str, missing_skills: str, description: str) -> str:
+    return f"""
+      <div style="color:#202b36;"><strong>Details:</strong> {_escape(details)}</div>
+      <div style="color:#805300;"><strong>Missing/weak signals:</strong> {_escape(missing_skills)}</div>
+      <div style="margin-top:8px;color:#53616f;"><strong>Posting snapshot:</strong> {_escape(description)}</div>
+    """
+
+
+def _free_upgrade_html() -> str:
+    return """
+      <div style="margin:12px 0;padding:12px;border-radius:12px;background:#f5d9cb;color:#8a3b2f;">
+        Free plan: upgrade to Pro for more jobs, richer explanations, salary/source details, and Gemini scoring when available.
+      </div>
+    """
 
 
 def _format_job_details(match: dict[str, object]) -> str:

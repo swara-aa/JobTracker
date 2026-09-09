@@ -33,6 +33,9 @@ def ensure_database() -> None:
             connection.execute(
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_posted_at TEXT NOT NULL DEFAULT ''"
             )
+            connection.execute(
+                "ALTER TABLE digest_subscribers ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'"
+            )
             connection.commit()
         return
 
@@ -203,6 +206,7 @@ def ensure_database() -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT NOT NULL UNIQUE,
                 name TEXT NOT NULL DEFAULT '',
+                plan TEXT NOT NULL DEFAULT 'free',
                 roles TEXT NOT NULL DEFAULT '[]',
                 location TEXT NOT NULL DEFAULT '',
                 resume_filename TEXT NOT NULL DEFAULT '',
@@ -229,6 +233,14 @@ def ensure_database() -> None:
             )
             """
         )
+        existing_digest_columns = {
+            row[1]
+            for row in connection.execute("PRAGMA table_info(digest_subscribers)").fetchall()
+        }
+        if "plan" not in existing_digest_columns:
+            connection.execute(
+                "ALTER TABLE digest_subscribers ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'"
+            )
         existing_match_columns = {
             row[1]
             for row in connection.execute("PRAGMA table_info(resume_job_matches)").fetchall()
