@@ -196,10 +196,11 @@ export JOB_AGENT_ENABLE_LOCAL_EMBEDDINGS=1
 export COMPANY_INTELLIGENCE_ENABLED=true
 export COMPANY_DATABASE_PATH=config/companies.csv
 
-# Optional public company boards: comma-separated board-or-site-token:Display Name
+# Optional primary company sources: comma-separated career-system identifiers.
 export JOB_AGENT_ROLE_QUERIES="Software Engineer,AI/ML Engineer,Marketing Coordinator,Financial Analyst"
 export JOB_AGENT_GREENHOUSE_BOARDS="board-token:Company Name,another-token:Another Company"
 export JOB_AGENT_LEVER_SITES="site-token:Company Name,another-site:Another Company"
+export JOB_AGENT_WORKDAY_SITES="company.wd5.myworkdayjobs.com:tenant:External:Company Name"
 
 # Optional daily SMTP digest
 export JOB_AGENT_SMTP_HOST="smtp.example.com"
@@ -216,6 +217,8 @@ On Windows, use `$env:NAME="value"` for the current PowerShell session.
 4. Open a LinkedIn Jobs results page and start collection from **Job Tracker Helper**.
 
 The extension imports visible result cards and advances through result pages after you start it. It waits 10 seconds between pages. Description capture is deliberately deferred until the full collection finishes so LinkedIn pagination and public-page requests do not overlap.
+
+New jobs store both `source_posted_at` from the source system and `first_seen_at` from JobTracker. The dashboard uses these fields to distinguish the company/LinkedIn posting date from when JobTracker first captured the opportunity. Cross-source deduplication prevents the same company/title/location posting from appearing again when LinkedIn reposts a job already found on a company career site.
 
 ### Daily LinkedIn collection on macOS
 

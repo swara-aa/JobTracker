@@ -59,6 +59,7 @@ AUTOMATION_PUBLIC_COLLECTION_TIME = os.getenv(
 REQUEST_TIMEOUT_SECONDS = int(os.getenv("JOB_AGENT_TIMEOUT_SECONDS", "20"))
 GREENHOUSE_BOARDS = os.getenv("JOB_AGENT_GREENHOUSE_BOARDS", "")
 LEVER_SITES = os.getenv("JOB_AGENT_LEVER_SITES", "")
+WORKDAY_SITES = os.getenv("JOB_AGENT_WORKDAY_SITES", "")
 SMTP_HOST = os.getenv("JOB_AGENT_SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("JOB_AGENT_SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("JOB_AGENT_SMTP_USERNAME", "")
@@ -100,6 +101,17 @@ def configured_boards(value: str) -> list[tuple[str, str]]:
         if token:
             boards.append((token.strip(), (label.strip() or token.strip())))
     return boards
+
+
+def configured_workday_sites(value: str) -> list[tuple[str, str, str, str]]:
+    sites: list[tuple[str, str, str, str]] = []
+    for entry in value.split(","):
+        parts = [part.strip() for part in entry.strip().split(":")]
+        if len(parts) >= 3 and all(parts[:3]):
+            host, tenant, site = parts[:3]
+            company = parts[3] if len(parts) >= 4 and parts[3] else tenant
+            sites.append((host, tenant, site, company))
+    return sites
 
 def _csv_values(value: str, fallback: list[str]) -> list[str]:
     values = [item.strip() for item in value.split(",") if item.strip()]

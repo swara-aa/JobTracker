@@ -19,7 +19,9 @@ from job_agent.config import (
     GREENHOUSE_BOARDS,
     LEVER_SITES,
     ROLE_QUERIES,
+    WORKDAY_SITES,
     configured_boards,
+    configured_workday_sites,
     get_user_setting,
 )
 from job_agent.classification import ROLE_FAMILIES
@@ -700,6 +702,7 @@ def create_app() -> Flask:
             automation_public_collection_time=AUTOMATION_PUBLIC_COLLECTION_TIME,
             greenhouse_boards=configured_boards(GREENHOUSE_BOARDS),
             lever_sites=configured_boards(LEVER_SITES),
+            workday_sites=configured_workday_sites(WORKDAY_SITES),
             message=request.args.get("message", "").strip(),
         )
 

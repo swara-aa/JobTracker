@@ -89,7 +89,7 @@
   <body>
     <main>
       <section class="panel">
-        <p class="muted">{{ job.company }} · {{ job.location }} · {{ job.posting_date|relative_time }}</p>
+        <p class="muted">{{ job.company }} · {{ job.location }} · source posted {{ (job.source_posted_at or job.posting_date)|relative_time }} · first seen {{ (job.first_seen_at or job.posting_date)|relative_time }}</p>
         <h1>{{ job.title }}</h1>
         <div class="actions">
           <a class="button" href="/">Back to jobs</a>

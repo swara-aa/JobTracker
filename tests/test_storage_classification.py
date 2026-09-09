@@ -14,7 +14,10 @@ class StorageClassificationTests(unittest.TestCase):
     def test_imported_jobs_are_classified_by_title(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"
-            with patch("job_agent.storage.DB_PATH", database_path):
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
                 save_jobs(
                     [
                         JobPosting(
@@ -37,7 +40,10 @@ class StorageClassificationTests(unittest.TestCase):
     def test_location_filter_matches_city_and_state_group(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"
-            with patch("job_agent.storage.DB_PATH", database_path):
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
                 save_jobs(
                     [
                         JobPosting(
@@ -63,7 +69,10 @@ class StorageClassificationTests(unittest.TestCase):
     def test_legacy_software_default_is_reclassified_on_startup(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"
-            with patch("job_agent.storage.DB_PATH", database_path):
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
                 ensure_database()
                 with database_path.open("rb"):
                     pass
@@ -91,6 +100,67 @@ class StorageClassificationTests(unittest.TestCase):
                 ensure_database()
                 jobs = fetch_jobs(role="Marketing & Communications")
 
+        self.assertEqual(len(jobs), 1)
+
+    def test_new_jobs_store_first_seen_and_source_posted_dates(self) -> None:
+        posted_at = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="Greenhouse",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=posted_at,
+                            link="https://example.test/software",
+                        )
+                    ]
+                )
+                jobs = fetch_jobs()
+
+        self.assertEqual(jobs[0]["source_posted_at"], posted_at.isoformat())
+        self.assertTrue(str(jobs[0]["first_seen_at"]))
+
+    def test_reposted_same_company_title_location_is_deduped(self) -> None:
+        posted_at = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                saved = save_jobs(
+                    [
+                        JobPosting(
+                            source="Greenhouse",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Example Corp",
+                            location="San Francisco, CA",
+                            posting_date=posted_at,
+                            link="https://example.test/company-job",
+                        ),
+                        JobPosting(
+                            source="LinkedIn Review",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Example Corporation",
+                            location="California",
+                            posting_date=posted_at,
+                            link="https://linkedin.example.test/repost",
+                        ),
+                    ]
+                )
+                jobs = fetch_jobs()
+
+        self.assertEqual(saved, 1)
         self.assertEqual(len(jobs), 1)
 
 

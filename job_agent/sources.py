@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
+import re
 from typing import Iterable
 from urllib.parse import quote
 
@@ -241,6 +242,48 @@ class LeverSource(BaseSource):
                     )
 
 
+class WorkdaySource(BaseSource):
+    name = "Workday"
+
+    def __init__(self, sites: list[tuple[str, str, str, str]]) -> None:
+        super().__init__()
+        self.sites = sites
+
+    def fetch(self, role_query: str) -> Iterable[JobPosting]:
+        for host, tenant, site, company in self.sites:
+            endpoint = f"https://{host}/wday/cxs/{quote(tenant)}/{quote(site)}/jobs"
+            response = self.session.post(
+                endpoint,
+                json={
+                    "appliedFacets": {},
+                    "limit": 50,
+                    "offset": 0,
+                    "searchText": role_query,
+                },
+                timeout=config.REQUEST_TIMEOUT_SECONDS,
+            )
+            response.raise_for_status()
+            for item in response.json().get("jobPostings", []):
+                title = str(item.get("title") or "").strip()
+                location = _workday_location(item)
+                external_path = str(item.get("externalPath") or "").strip()
+                posted_text = str(item.get("postedOn") or item.get("startDate") or "").strip()
+                if not all([title, location, external_path]):
+                    continue
+                posted_at = _parse_workday_posted_at(posted_text)
+                if self._keep(role_query, title, location, posted_at):
+                    link = f"https://{host}/en-US/{quote(site)}/job{external_path}"
+                    yield JobPosting(
+                        self.name,
+                        role_query,
+                        title,
+                        company,
+                        location,
+                        posted_at,
+                        link,
+                    )
+
+
 def get_sources() -> list[BaseSource]:
     sources: list[BaseSource] = [
         RemoteOkSource(),
@@ -249,10 +292,13 @@ def get_sources() -> list[BaseSource]:
     ]
     greenhouse_boards = config.configured_boards(config.GREENHOUSE_BOARDS)
     lever_sites = config.configured_boards(config.LEVER_SITES)
+    workday_sites = config.configured_workday_sites(config.WORKDAY_SITES)
     if greenhouse_boards:
         sources.append(GreenhouseSource(greenhouse_boards))
     if lever_sites:
         sources.append(LeverSource(lever_sites))
+    if workday_sites:
+        sources.append(WorkdaySource(workday_sites))
     return sources
 
 
@@ -266,3 +312,31 @@ def _parse_iso_datetime(value: str) -> datetime:
 
 def _html_to_text(value: str) -> str:
     return BeautifulSoup(value, "html.parser").get_text(" ", strip=True)
+
+
+def _workday_location(item: dict[str, object]) -> str:
+    locations = item.get("locations")
+    if isinstance(locations, list) and locations:
+        names = [
+            str(location.get("displayName") or location.get("name") or "").strip()
+            for location in locations
+            if isinstance(location, dict)
+        ]
+        return "; ".join(name for name in names if name)
+    return str(item.get("locationsText") or item.get("location") or "").strip()
+
+
+def _parse_workday_posted_at(value: str) -> datetime:
+    normalized = str(value or "").strip().lower()
+    now = datetime.now(timezone.utc)
+    if not normalized:
+        return now
+    match = re.search(r"posted\s+(\d+)\s+day", normalized)
+    if match:
+        return now - timedelta(days=int(match.group(1)))
+    if "today" in normalized or "just posted" in normalized:
+        return now
+    try:
+        return _parse_iso_datetime(str(value))
+    except ValueError:
+        return now

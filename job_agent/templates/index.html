@@ -373,7 +373,7 @@
                 <th>Title</th>
                 <th>Company</th>
                 <th>Location</th>
-                <th>Posting Date</th>
+                <th>Freshness</th>
                 <th>Details</th>
                 <th>Visa / Sponsorship</th>
                 <th>Best Match</th>
@@ -390,7 +390,10 @@
                 <td>{{ job.title }}{% if job.verification_reasons %}<span class="detail-item" title="{{ job.verification_reasons|join('; ') }}">Needs verification</span>{% endif %}</td>
                 <td>{{ job.company }}</td>
                 <td>{{ job.location }}</td>
-                <td>{{ job.posting_date|relative_time }}</td>
+                <td>
+                  Source posted {{ (job.source_posted_at or job.posting_date)|relative_time }}<br>
+                  <span class="muted">First seen {{ (job.first_seen_at or job.posting_date)|relative_time }}</span>
+                </td>
                 <td class="job-details">
                   {% if job.salary %}<span class="detail-item">{{ job.salary }}</span>{% endif %}
                   {% if job.workplace_type %}<span class="detail-item">{{ job.workplace_type }}</span>{% endif %}

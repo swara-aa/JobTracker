@@ -28,6 +28,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     local_match_analyzed_at TEXT NOT NULL DEFAULT '', local_semantic_score INTEGER,
     public_capture_metadata TEXT NOT NULL DEFAULT '{}', public_capture_status TEXT NOT NULL DEFAULT '',
     public_captured_at TEXT NOT NULL DEFAULT '', collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
+    source_posted_at TEXT NOT NULL DEFAULT '',
     UNIQUE(source, link)
 );
 

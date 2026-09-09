@@ -91,7 +91,7 @@
             <div class="score">{{ job.best_match_score }}<small>/100 · {{ job.best_match_source }}</small></div>
             <div>
               <h3><a href="/jobs/{{ job.id }}">{{ job.title }}</a></h3>
-              <p>{{ job.company }} · {{ job.location }} · posted {{ job.posting_date|relative_time }}</p>
+              <p>{{ job.company }} · {{ job.location }} · source posted {{ (job.source_posted_at or job.posting_date)|relative_time }} · first seen {{ (job.first_seen_at or job.posting_date)|relative_time }}</p>
               <div class="tags">
                 <span class="tag">{{ job.application_status }}</span>
                 {% if job.is_fortune_500 %}<span class="tag good">Fortune 500 priority</span>{% endif %}

@@ -14,7 +14,7 @@ from job_agent.classification import (
     location_matches,
 )
 from job_agent.config import DB_PATH
-from job_agent.database import backend_name, connect, postgres_connection
+from job_agent.database import PostgresConnection, backend_name, postgres_connection
 from job_agent.models import JobPosting
 from job_agent.postgres_schema import schema_statements
 
@@ -27,6 +27,12 @@ def ensure_database() -> None:
         with postgres_connection() as connection:
             for statement in schema_statements():
                 connection.execute(statement)
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text"
+            )
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_posted_at TEXT NOT NULL DEFAULT ''"
+            )
             connection.commit()
         return
 
@@ -140,6 +146,8 @@ def ensure_database() -> None:
             "public_capture_metadata": "TEXT NOT NULL DEFAULT '{}'",
             "public_capture_status": "TEXT NOT NULL DEFAULT ''",
             "public_captured_at": "TEXT NOT NULL DEFAULT ''",
+            "first_seen_at": "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "source_posted_at": "TEXT NOT NULL DEFAULT ''",
         }
         for column, definition in migrations.items():
             if column not in existing_columns:
@@ -244,10 +252,10 @@ def save_jobs(jobs: Iterable[JobPosting]) -> int:
 
 def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
     ensure_database()
-    saved = 0
     saved_job_ids: list[int] = []
+    now = datetime.now(timezone.utc).isoformat()
 
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         existing_postings = connection.execute(
             "SELECT source, title, company, location FROM jobs"
         ).fetchall()
@@ -255,37 +263,55 @@ def save_jobs_with_ids(jobs: Iterable[JobPosting]) -> list[int]:
             role_query = job.role_query.strip() or infer_role_family(job.title, job.description)
             if _matches_existing_cross_source_posting(job, existing_postings):
                 continue
-            cursor = connection.execute(
-                """
-                INSERT OR IGNORE INTO jobs (
-                    source, role_query, title, company, location, posting_date, link,
-                    salary, workplace_type, employment_type, applicant_count,
-                    easy_apply, description
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    job.source,
-                    role_query,
-                    job.title,
-                    job.company,
-                    job.location,
-                    job.posting_date_iso,
-                    job.link,
-                    job.salary,
-                    job.workplace_type,
-                    job.employment_type,
-                    job.applicant_count,
-                    int(job.easy_apply),
-                    job.description,
-                ),
+            parameters = (
+                job.source,
+                role_query,
+                job.title,
+                job.company,
+                job.location,
+                job.posting_date_iso,
+                job.link,
+                job.salary,
+                job.workplace_type,
+                job.employment_type,
+                job.applicant_count,
+                int(job.easy_apply),
+                job.description,
+                now,
+                job.posting_date_iso,
             )
-            if cursor.rowcount:
-                saved += 1
-                saved_job_ids.append(int(cursor.lastrowid))
+            if backend_name() == "postgresql":
+                cursor = connection.execute(
+                    """
+                    INSERT INTO jobs (
+                        source, role_query, title, company, location, posting_date, link,
+                        salary, workplace_type, employment_type, applicant_count,
+                        easy_apply, description, first_seen_at, source_posted_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(source, link) DO NOTHING
+                    RETURNING id
+                    """,
+                    parameters,
+                )
+                row = cursor.fetchone()
+                inserted_id = int(row[0]) if row else 0
+            else:
+                cursor = connection.execute(
+                    """
+                    INSERT OR IGNORE INTO jobs (
+                        source, role_query, title, company, location, posting_date, link,
+                        salary, workplace_type, employment_type, applicant_count,
+                        easy_apply, description, first_seen_at, source_posted_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    parameters,
+                )
+                inserted_id = int(cursor.lastrowid) if cursor.rowcount else 0
+            if inserted_id:
+                saved_job_ids.append(inserted_id)
                 existing_postings.append((job.source, job.title, job.company, job.location))
-
-        connection.commit()
 
     if saved_job_ids:
         try:
@@ -319,23 +345,47 @@ def _matches_existing_cross_source_posting(
     job: JobPosting, existing_postings: list[tuple[str, str, str, str]]
 ) -> bool:
     for source, title, company, location in existing_postings:
-        if source == job.source:
-            continue
         if (
             _text_similarity(job.company, company) >= 0.90
             and _text_similarity(job.title, title) >= 0.88
-            and _text_similarity(job.location, location) >= 0.80
+            and (
+                _text_similarity(job.location, location) >= 0.80
+                or location_matches(job.location, location)
+                or location_matches(location, job.location)
+            )
         ):
             return True
     return False
 
 
 def _text_similarity(left: str, right: str) -> float:
-    normalized_left = re.sub(r"[^a-z0-9]+", "", str(left).lower())
-    normalized_right = re.sub(r"[^a-z0-9]+", "", str(right).lower())
+    normalized_left = _dedupe_text(left)
+    normalized_right = _dedupe_text(right)
     if not normalized_left or not normalized_right:
         return 0.0
     return SequenceMatcher(None, normalized_left, normalized_right).ratio()
+
+
+def _dedupe_text(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", " ", str(value).lower())
+    words = [
+        word
+        for word in normalized.split()
+        if word
+        not in {
+            "inc",
+            "incorporated",
+            "corp",
+            "corporation",
+            "co",
+            "company",
+            "llc",
+            "ltd",
+            "limited",
+            "the",
+        }
+    ]
+    return "".join(words)
 
 
 def job_count() -> int:
@@ -537,7 +587,7 @@ def fetch_jobs(
                follow_up_date, applied_at,
                local_match_score, local_match_resume_id, local_match_evidence,
                local_match_missing, local_match_hard_no, local_match_hard_no_reasons,
-               local_match_analyzed_at,
+               local_match_analyzed_at, first_seen_at, source_posted_at,
                matches.score AS resume_match_score,
                matches.hard_no AS resume_match_hard_no,
                matches.hard_no_reasons AS resume_match_hard_no_reasons
@@ -551,7 +601,7 @@ def fetch_jobs(
         ORDER BY jobs.posting_date DESC
     """
 
-    with connect() as connection:
+    with _storage_connection() as connection:
         if isinstance(connection, sqlite3.Connection):
             connection.row_factory = sqlite3.Row
         rows = connection.execute(
@@ -572,6 +622,13 @@ def fetch_jobs(
     if location:
         jobs = [job for job in jobs if location_matches(str(job.get("location") or ""), location)]
     return jobs
+
+
+def _storage_connection() -> sqlite3.Connection | PostgresConnection:
+    if backend_name() == "postgresql":
+        return PostgresConnection()
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return sqlite3.connect(DB_PATH)
 
 
 def fetch_job(job_id: int) -> dict[str, object] | None:
