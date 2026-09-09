@@ -217,8 +217,21 @@ def send_digest_to_subscriber(
     message["To"] = email
     message.set_content(_plain_digest(subscriber, matches))
     message.add_alternative(_html_digest(subscriber, matches), subtype="html")
-    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as server:
-        server.starttls()
+    if config.SMTP_PORT == 465:
+        server_context = smtplib.SMTP_SSL(
+            config.SMTP_HOST,
+            config.SMTP_PORT,
+            timeout=SMTP_TIMEOUT_SECONDS,
+        )
+    else:
+        server_context = smtplib.SMTP(
+            config.SMTP_HOST,
+            config.SMTP_PORT,
+            timeout=SMTP_TIMEOUT_SECONDS,
+        )
+    with server_context as server:
+        if config.SMTP_PORT != 465:
+            server.starttls()
         server.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
         server.send_message(message)
     _record_deliveries(int(subscriber["id"]), matches)
