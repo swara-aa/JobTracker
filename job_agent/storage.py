@@ -149,7 +149,7 @@ def ensure_database() -> None:
             "public_capture_metadata": "TEXT NOT NULL DEFAULT '{}'",
             "public_capture_status": "TEXT NOT NULL DEFAULT ''",
             "public_captured_at": "TEXT NOT NULL DEFAULT ''",
-            "first_seen_at": "TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "first_seen_at": "TEXT NOT NULL DEFAULT ''",
             "source_posted_at": "TEXT NOT NULL DEFAULT ''",
         }
         for column, definition in migrations.items():
