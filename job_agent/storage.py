@@ -14,7 +14,7 @@ from job_agent.classification import (
     location_matches,
 )
 from job_agent.config import DB_PATH
-from job_agent.database import backend_name, postgres_connection
+from job_agent.database import backend_name, connect, postgres_connection
 from job_agent.models import JobPosting
 from job_agent.postgres_schema import schema_statements
 
@@ -551,8 +551,9 @@ def fetch_jobs(
         ORDER BY jobs.posting_date DESC
     """
 
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with connect() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         rows = connection.execute(
             query,
             (

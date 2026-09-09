@@ -28,7 +28,11 @@ class DigestTests(unittest.TestCase):
     def test_subscribe_stores_preferences_and_resume(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"
-            with patch("job_agent.storage.DB_PATH", database_path), patch("job_agent.digest.DB_PATH", database_path):
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
                 subscribe_to_digest(
                     email="PERSON@example.com",
                     name="Person",
@@ -50,6 +54,7 @@ class DigestTests(unittest.TestCase):
             with (
                 patch("job_agent.storage.DB_PATH", database_path),
                 patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
             ):
                 subscriber = subscribe_to_digest(
