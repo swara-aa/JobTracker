@@ -23,6 +23,7 @@ DIGEST_LIMIT = 10
 MAX_CANDIDATES = 30
 MAX_DIGEST_DESCRIPTION_LENGTH = 5000
 MAX_DIGEST_RESUME_LENGTH = 12000
+EMAIL_DESCRIPTION_LENGTH = 260
 SMTP_TIMEOUT_SECONDS = 8
 logger = logging.getLogger(__name__)
 
@@ -365,6 +366,10 @@ def _format_digest_match(
         "role_query": job["role_query"],
         "link": job["link"],
         "description": job.get("description", ""),
+        "salary": job.get("salary", ""),
+        "workplace_type": job.get("workplace_type", ""),
+        "employment_type": job.get("employment_type", ""),
+        "source": job.get("source", ""),
         "score": int(score.get("score") or 0),
         "score_source": score_source,
         "rationale": "Strongest available match based on resume and job keywords.",
@@ -428,13 +433,27 @@ def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> 
 
 def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:
     name = str(subscriber.get("name") or "there").strip()
-    lines = [f"Hi {name},", "", "Here are your top job matches for today:", ""]
+    lines = [
+        f"Hi {name},",
+        "",
+        "Here are your top job matches for today. Scores are based on your resume, role preferences, location preference, and posting text.",
+        "",
+    ]
     for index, match in enumerate(matches, start=1):
+        matched_skills = _format_list(match.get("matched_skills"))
+        missing_skills = _format_list(match.get("missing_skills"))
+        details = _format_job_details(match)
+        description = _short_description(match)
         lines.extend(
             [
                 f"{index}. {match['title']} at {match['company']} - {match['score']}/100 ({match['score_source']})",
+                f"   Role: {match['role_query']}",
                 f"   Location: {match['location']}",
+                f"   Details: {details}",
                 f"   Why: {match['rationale']}",
+                f"   Matched skills: {matched_skills}",
+                f"   Missing/weak signals: {missing_skills}",
+                f"   Description: {description}",
                 f"   Apply: {match['link']}",
                 "",
             ]
@@ -447,15 +466,24 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
     name = str(subscriber.get("name") or "there").strip()
     items = []
     for match in matches:
+        details = _format_job_details(match)
+        matched_skills = _format_list(match.get("matched_skills"))
+        missing_skills = _format_list(match.get("missing_skills"))
+        description = _short_description(match)
         items.append(
             f"""
             <tr>
-              <td style="padding:14px;border-bottom:1px solid #eadfd2;">
-                <strong>{_escape(match['title'])}</strong><br>
-                {_escape(match['company'])} · {_escape(match['location'])}<br>
-                <span style="color:#8a3b2f;">{match['score']}/100 {_escape(match['score_source'])} match</span><br>
-                <span>{_escape(match['rationale'])}</span><br>
-                <a href="{_escape(match['link'])}">View job</a>
+              <td style="padding:18px 0;border-bottom:1px solid #eadfd2;">
+                <div style="font-size:17px;font-weight:bold;color:#202b36;">{_escape(match['title'])}</div>
+                <div style="color:#53616f;margin:3px 0 8px;">{_escape(match['company'])} · {_escape(match['location'])}</div>
+                <div style="display:inline-block;background:#f5d9cb;color:#8a3b2f;border-radius:999px;padding:5px 10px;font-weight:bold;">{match['score']}/100 {_escape(match['score_source'])} match</div>
+                <div style="margin-top:10px;color:#202b36;"><strong>Role:</strong> {_escape(match['role_query'])}</div>
+                <div style="color:#202b36;"><strong>Details:</strong> {_escape(details)}</div>
+                <div style="margin-top:8px;color:#202b36;"><strong>Why it matched:</strong> {_escape(match['rationale'])}</div>
+                <div style="margin-top:8px;color:#196a51;"><strong>Matched skills:</strong> {_escape(matched_skills)}</div>
+                <div style="color:#805300;"><strong>Missing/weak signals:</strong> {_escape(missing_skills)}</div>
+                <div style="margin-top:8px;color:#53616f;"><strong>Posting snapshot:</strong> {_escape(description)}</div>
+                <div style="margin-top:10px;"><a href="{_escape(match['link'])}" style="color:#aa3a2a;font-weight:bold;">View job</a></div>
               </td>
             </tr>
             """
@@ -463,7 +491,7 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
     return f"""
     <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
       <h1 style="margin:0 0 12px;">Your top job matches</h1>
-      <p>Hi {_escape(name)}, here are the best new matches for your resume today.</p>
+      <p>Hi {_escape(name)}, here are the best new matches for your resume today. Scores use your resume, role preferences, location preference, and posting text.</p>
       <table width="100%" cellspacing="0" cellpadding="0">{''.join(items)}</table>
     </div>
     """
@@ -487,6 +515,37 @@ def _normalize_email(value: str) -> str:
 
 def _normalize(value: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9]+", " ", str(value).lower())).strip()
+
+
+def _format_job_details(match: dict[str, object]) -> str:
+    parts = [
+        str(match.get("employment_type") or "").strip(),
+        str(match.get("workplace_type") or "").strip(),
+        str(match.get("salary") or "").strip(),
+        f"Posted {match['posting_date']}" if str(match.get("posting_date") or "").strip() else "",
+        str(match.get("source") or "").strip(),
+    ]
+    return " · ".join(part for part in parts if part) or "Details not listed"
+
+
+def _format_list(value: object, *, limit: int = 6) -> str:
+    if not isinstance(value, list):
+        return "None detected"
+    items = [str(item).strip() for item in value if str(item).strip()]
+    if not items:
+        return "None detected"
+    visible = items[:limit]
+    suffix = f" +{len(items) - limit} more" if len(items) > limit else ""
+    return ", ".join(visible) + suffix
+
+
+def _short_description(match: dict[str, object]) -> str:
+    description = re.sub(r"\s+", " ", str(match.get("description") or "")).strip()
+    if not description:
+        return "No description captured."
+    if len(description) <= EMAIL_DESCRIPTION_LENGTH:
+        return description
+    return description[: EMAIL_DESCRIPTION_LENGTH - 1].rstrip() + "…"
 
 
 def _escape(value: object) -> str:

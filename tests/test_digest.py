@@ -6,7 +6,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from job_agent.digest import active_digest_subscribers, subscribe_to_digest, top_digest_matches
+from job_agent.digest import (
+    _plain_digest,
+    active_digest_subscribers,
+    subscribe_to_digest,
+    top_digest_matches,
+)
 from job_agent.models import JobPosting
 from job_agent.storage import save_jobs
 
@@ -84,6 +89,36 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual(len(matches), 1)
         self.assertEqual(matches[0]["title"], "Marketing Coordinator")
+
+    def test_plain_digest_includes_rich_match_context(self) -> None:
+        body = _plain_digest(
+            {"name": "Person"},
+            [
+                {
+                    "title": "Marketing Coordinator",
+                    "company": "Example",
+                    "score": 82,
+                    "score_source": "local",
+                    "role_query": "Marketing & Communications",
+                    "location": "San Francisco, CA",
+                    "employment_type": "Full-time",
+                    "workplace_type": "Hybrid",
+                    "salary": "$70,000",
+                    "posting_date": "2026-09-08",
+                    "source": "LinkedIn",
+                    "rationale": "Strong campaign analytics overlap.",
+                    "matched_skills": ["Campaign Analytics", "Content Strategy"],
+                    "missing_skills": ["HubSpot"],
+                    "description": "Create content strategy and campaign analytics dashboards.",
+                    "link": "https://example.test/marketing",
+                }
+            ],
+        )
+
+        self.assertIn("82/100", body)
+        self.assertIn("Matched skills: Campaign Analytics, Content Strategy", body)
+        self.assertIn("Missing/weak signals: HubSpot", body)
+        self.assertIn("Description: Create content strategy", body)
 
 
 if __name__ == "__main__":
