@@ -83,7 +83,7 @@ class PostgresConnection:
         self._connection.close()
 
     def execute(self, query: str, parameters: Any = ()) -> PostgresCursor:
-        translated = query.replace("?", "%s")
+        translated = translate_sqlite_placeholders(query)
         cursor = self._connection.cursor()
         cursor.execute(translated, parameters)
         return PostgresCursor(cursor)
@@ -97,3 +97,7 @@ def connect() -> sqlite3.Connection | PostgresConnection:
         DB_PATH.parent.mkdir(parents=True, exist_ok=True)
         return sqlite3.connect(DB_PATH)
     return PostgresConnection()
+
+
+def translate_sqlite_placeholders(query: str) -> str:
+    return query.replace("%", "%%").replace("?", "%s")

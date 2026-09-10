@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from job_agent import config
+from job_agent.database import translate_sqlite_placeholders
 
 
 class DatabaseConfigTests(unittest.TestCase):
@@ -20,3 +21,13 @@ class DatabaseConfigTests(unittest.TestCase):
         with patch.object(config, "DATABASE_URL", "mysql://example.test/jobs"):
             with self.assertRaises(ValueError):
                 config.database_backend()
+
+    def test_postgres_translation_escapes_literal_percent_wildcards(self) -> None:
+        query = "SELECT * FROM jobs WHERE (? = '' OR lower(company) LIKE '%' || lower(?) || '%')"
+
+        translated = translate_sqlite_placeholders(query)
+
+        self.assertEqual(
+            translated,
+            "SELECT * FROM jobs WHERE (%s = '' OR lower(company) LIKE '%%' || lower(%s) || '%%')",
+        )
