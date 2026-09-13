@@ -774,6 +774,33 @@ def analytics_summary(days: int = 30) -> dict[str, object]:
     }
 
 
+def today_scoring_summary(today: str | None = None) -> dict[str, int]:
+    """Return production-safe counts for jobs collected and scored today."""
+    target_date = today or datetime.now(timezone.utc).date().isoformat()
+    ensure_database()
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """
+            SELECT
+                COUNT(*) AS collected,
+                COALESCE(SUM(CASE WHEN trim(jobs.description) <> '' THEN 1 ELSE 0 END), 0) AS described,
+                COALESCE(SUM(CASE WHEN jobs.local_match_score IS NOT NULL THEN 1 ELSE 0 END), 0) AS locally_scored,
+                COALESCE(SUM(CASE WHEN matches.job_id IS NOT NULL THEN 1 ELSE 0 END), 0) AS gemini_scored,
+                COALESCE(SUM(CASE WHEN jobs.source = 'LinkedIn Review' THEN 1 ELSE 0 END), 0) AS linkedin,
+                COALESCE(SUM(CASE WHEN jobs.source <> 'LinkedIn Review' THEN 1 ELSE 0 END), 0) AS public_sources,
+                COALESCE(SUM(CASE WHEN substr(jobs.source_posted_at, 1, 10) = ? THEN 1 ELSE 0 END), 0) AS source_posted_today
+            FROM jobs
+            LEFT JOIN resume_job_matches AS matches
+              ON matches.job_id = jobs.id AND matches.is_best = 1
+            WHERE substr(jobs.collected_at, 1, 10) = ?
+            """,
+            (target_date, target_date),
+        ).fetchone()
+    return {key: int(value or 0) for key, value in dict(row).items()}
+
+
 def distinct_values(column: str) -> list[str]:
     if column not in {
         "role_query",

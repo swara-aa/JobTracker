@@ -35,6 +35,15 @@
         <div class="metric"><strong>{{ total_jobs }}</strong>saved jobs</div><div class="metric"><strong>{{ resume_count }}</strong>uploaded resumes</div>
         <div class="metric"><strong>{{ descriptions_waiting }}</strong>descriptions waiting</div><div class="metric"><strong>{{ gemini_waiting }}</strong>jobs without Gemini matches</div>
       </div></section>
+      <section class="panel"><h2>Today’s Scoring</h2>
+        <div class="grid">
+          <div class="metric"><strong>{{ today_scoring.collected }}</strong>jobs collected today<br><small>{{ today_scoring.public_sources }} public boards · {{ today_scoring.linkedin }} LinkedIn</small></div>
+          <div class="metric"><strong>{{ today_scoring.described }}</strong>with descriptions</div>
+          <div class="metric"><strong>{{ today_scoring.locally_scored }}</strong>locally scored</div>
+          <div class="metric"><strong>{{ today_scoring.gemini_scored }}</strong>Gemini scored</div>
+          <div class="metric"><strong>{{ today_scoring.source_posted_today }}</strong>source-posted today</div>
+        </div>
+      </section>
       <section class="panel"><h2>Public Company Boards</h2>
         <p>Uses official public Greenhouse, Lever, and Workday career-site APIs. New jobs retain their source-posted date, first-seen date, description, and local score.</p>
         <div class="grid">

@@ -45,6 +45,7 @@ from job_agent.storage import (
     skill_gap_summary,
     update_job_pipeline,
     ensure_database,
+    today_scoring_summary,
 )
 from job_agent.resume_library import extract_resume
 
@@ -695,6 +696,7 @@ def create_app() -> Flask:
             resume_count=len(fetch_resumes()),
             descriptions_waiting=public_description_missing_count(),
             gemini_waiting=len(job_ids_without_gemini_match()),
+            today_scoring=today_scoring_summary(),
             gemini_configured=bool(get_user_setting("GEMINI_API_KEY")),
             overnight_status=overnight_public_backfill_status(),
             gemini_status=gemini_queue_status(),

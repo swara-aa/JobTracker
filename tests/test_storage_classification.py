@@ -7,7 +7,13 @@ import unittest
 from unittest.mock import patch
 
 from job_agent.models import JobPosting
-from job_agent.storage import distinct_values, ensure_database, fetch_jobs, save_jobs
+from job_agent.storage import (
+    distinct_values,
+    ensure_database,
+    fetch_jobs,
+    save_jobs,
+    today_scoring_summary,
+)
 
 
 class StorageClassificationTests(unittest.TestCase):
@@ -127,6 +133,35 @@ class StorageClassificationTests(unittest.TestCase):
 
         self.assertEqual(jobs[0]["source_posted_at"], posted_at.isoformat())
         self.assertTrue(str(jobs[0]["first_seen_at"]))
+
+    def test_today_scoring_summary_counts_saved_jobs(self) -> None:
+        posted_at = datetime.now(timezone.utc)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="Greenhouse",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=posted_at,
+                            link="https://example.test/today-software",
+                            description="Build Python services.",
+                        )
+                    ]
+                )
+                summary = today_scoring_summary(posted_at.date().isoformat())
+
+        self.assertEqual(summary["collected"], 1)
+        self.assertEqual(summary["described"], 1)
+        self.assertEqual(summary["public_sources"], 1)
+        self.assertEqual(summary["source_posted_today"], 1)
 
     def test_reposted_same_company_title_location_is_deduped(self) -> None:
         posted_at = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
