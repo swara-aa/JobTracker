@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_agent.config import (
     AUTOMATION_PUBLIC_COLLECTION_TIME,
+    DIGEST_LATEST_SEND_TIME,
     DATA_DIR,
     DIGEST_SEND_TIME,
     DIGEST_TIMEZONE,
@@ -470,6 +471,18 @@ def _maybe_send_daily_digests() -> None:
     hour, minute = _digest_time()
     if (now.hour, now.minute) < (hour, minute):
         return
+    wait_reason = _digest_scoring_wait_reason(state, now)
+    if wait_reason:
+        state.update(
+            {
+                "message": (
+                    f"Daily digest waiting for {wait_reason}; "
+                    f"will send by {_format_time(_digest_latest_time())} if still running."
+                ),
+            }
+        )
+        _write_state(state)
+        return
     _runtime["phase"] = "sending daily digests"
     from job_agent.digest import send_daily_job_digests
 
@@ -485,6 +498,22 @@ def _maybe_send_daily_digests() -> None:
         }
     )
     _write_state(state)
+
+
+def _digest_scoring_wait_reason(state: dict[str, object], now: datetime) -> str:
+    if _digest_latest_time_reached(now):
+        return ""
+    if state.get("description_capture_pending"):
+        return "job descriptions to be captured"
+    if str(state.get("gemini_not_before") or "").strip():
+        return "Gemini scoring to start"
+
+    from job_agent.gemini_batch import batch_status
+
+    batch = batch_status(refresh=True)
+    if batch.get("active") or batch.get("submission_in_progress"):
+        return "Gemini scoring to finish"
+    return ""
 
 
 def _gemini_submission_failure_message(error: Exception, failures: int) -> str:
@@ -514,7 +543,27 @@ def _digest_time() -> tuple[int, int]:
             return parsed
     except (TypeError, ValueError):
         pass
-    return 8, 0
+    return 9, 15
+
+
+def _digest_latest_time() -> tuple[int, int]:
+    try:
+        hour, minute = DIGEST_LATEST_SEND_TIME.split(":", 1)
+        parsed = int(hour), int(minute)
+        if 0 <= parsed[0] <= 23 and 0 <= parsed[1] <= 59:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return 9, 30
+
+
+def _digest_latest_time_reached(now: datetime) -> bool:
+    hour, minute = _digest_latest_time()
+    return (now.hour, now.minute) >= (hour, minute)
+
+
+def _format_time(value: tuple[int, int]) -> str:
+    return f"{value[0]:02d}:{value[1]:02d}"
 
 
 def _digest_now() -> datetime:

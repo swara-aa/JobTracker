@@ -283,10 +283,10 @@ def top_digest_matches(
         reverse=True,
     )
     candidates = jobs[: max(MAX_CANDIDATES, limit)]
-    local_ranked = [
-        _format_digest_match(job, _score_resume(job, resume), "local")
-        for job in candidates
-    ]
+    local_ranked = []
+    for job in candidates:
+        score, score_source = _digest_score(job, resume)
+        local_ranked.append(_format_digest_match(job, score, score_source))
     local_ranked.sort(key=lambda item: int(item["score"]), reverse=True)
     gemini_ranked = (
         _score_digest_with_gemini(resume, local_ranked[:limit])
@@ -387,12 +387,30 @@ def _format_digest_match(
         "source": job.get("source", ""),
         "score": int(score.get("score") or 0),
         "score_source": score_source,
-        "rationale": "Strongest available match based on resume and job keywords.",
+        "rationale": str(score.get("rationale") or "Strongest available match based on resume and job keywords."),
         "matched_skills": score.get("evidence") or [],
         "missing_skills": score.get("missing") or [],
         "hard_no": bool(score.get("hard_no")),
         "posting_date": job.get("posting_date", ""),
     }
+
+
+def _digest_score(
+    job: dict[str, object],
+    resume: dict[str, object],
+) -> tuple[dict[str, object], str]:
+    if job.get("resume_match_score") is not None:
+        return (
+            {
+                "score": int(job.get("resume_match_score") or 0),
+                "rationale": str(job.get("resume_match_rationale") or ""),
+                "evidence": _json_list(job.get("resume_match_matched_skills")),
+                "missing": _json_list(job.get("resume_match_missing_skills")),
+                "hard_no": bool(int(job.get("resume_match_hard_no") or 0)),
+            },
+            "Gemini",
+        )
+    return _score_resume(job, resume), "local"
 
 
 def _role_matches(job: dict[str, object], roles: list[str]) -> bool:
@@ -583,6 +601,18 @@ def _format_list(value: object, *, limit: int = 6) -> str:
     visible = items[:limit]
     suffix = f" +{len(items) - limit} more" if len(items) > limit else ""
     return ", ".join(visible) + suffix
+
+
+def _json_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    try:
+        parsed = json.loads(str(value or "[]"))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed, list):
+        return []
+    return [str(item).strip() for item in parsed if str(item).strip()]
 
 
 def _short_description(match: dict[str, object]) -> str:

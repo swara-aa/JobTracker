@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from job_agent.digest import (
+    _digest_score,
     _plain_digest,
     active_digest_subscribers,
     subscribe_to_digest,
@@ -156,6 +157,23 @@ class DigestTests(unittest.TestCase):
         self.assertIn("Matched skills: Campaign Analytics, Content Strategy", body)
         self.assertNotIn("Missing/weak signals", body)
         self.assertNotIn("Description: Create content strategy", body)
+
+    def test_digest_score_prefers_stored_gemini_match(self) -> None:
+        score, source = _digest_score(
+            {
+                "resume_match_score": 91,
+                "resume_match_rationale": "Strong match on analytics and campaign execution.",
+                "resume_match_matched_skills": '["Campaign Analytics", "Content Strategy"]',
+                "resume_match_missing_skills": '["HubSpot"]',
+                "resume_match_hard_no": 0,
+            },
+            {"content": RESUME_TEXT},
+        )
+
+        self.assertEqual(source, "Gemini")
+        self.assertEqual(score["score"], 91)
+        self.assertEqual(score["evidence"], ["Campaign Analytics", "Content Strategy"])
+        self.assertEqual(score["missing"], ["HubSpot"])
 
 
 if __name__ == "__main__":

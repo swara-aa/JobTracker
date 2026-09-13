@@ -601,6 +601,9 @@ def fetch_jobs(
                local_match_missing, local_match_hard_no, local_match_hard_no_reasons,
                local_match_analyzed_at, first_seen_at, source_posted_at,
                matches.score AS resume_match_score,
+               matches.rationale AS resume_match_rationale,
+               matches.matched_skills AS resume_match_matched_skills,
+               matches.missing_skills AS resume_match_missing_skills,
                matches.hard_no AS resume_match_hard_no,
                matches.hard_no_reasons AS resume_match_hard_no_reasons
         FROM jobs

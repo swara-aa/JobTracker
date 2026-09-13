@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import datetime
 import unittest
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from job_agent.automation import (
     GEMINI_SUBMISSION_STATE_VERSION,
+    _digest_scoring_wait_reason,
     _gemini_submission_failure_message,
     _reset_daily_batch_counter,
 )
@@ -32,6 +35,20 @@ class GeminiAutomationTests(unittest.TestCase):
             written[0]["gemini_submission_state_version"],
             GEMINI_SUBMISSION_STATE_VERSION,
         )
+
+    def test_digest_waits_for_active_gemini_before_latest_send_time(self) -> None:
+        now = datetime(2026, 9, 13, 9, 15, tzinfo=ZoneInfo("America/Chicago"))
+        with patch("job_agent.gemini_batch.batch_status", return_value={"active": True}):
+            reason = _digest_scoring_wait_reason({}, now)
+
+        self.assertEqual(reason, "Gemini scoring to finish")
+
+    def test_digest_does_not_wait_after_latest_send_time(self) -> None:
+        now = datetime(2026, 9, 13, 9, 30, tzinfo=ZoneInfo("America/Chicago"))
+        with patch("job_agent.gemini_batch.batch_status", return_value={"active": True}):
+            reason = _digest_scoring_wait_reason({}, now)
+
+        self.assertEqual(reason, "")
 
 
 if __name__ == "__main__":
