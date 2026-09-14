@@ -289,11 +289,17 @@ def top_digest_matches(
         local_ranked.append(_format_digest_match(job, score, score_source))
     local_ranked.sort(key=lambda item: int(item["score"]), reverse=True)
     gemini_ranked = (
-        _score_digest_with_gemini(resume, local_ranked[:limit])
+        _score_digest_with_gemini(resume, local_ranked[:MAX_CANDIDATES])
         if use_gemini and pro_plan
         else []
     )
-    return (gemini_ranked or local_ranked)[:limit]
+    ranked = gemini_ranked or local_ranked
+    qualified = [
+        match
+        for match in ranked
+        if not match.get("hard_no") and int(match.get("score") or 0) >= config.DIGEST_MIN_SCORE
+    ]
+    return qualified[:limit]
 
 
 def _score_digest_with_gemini(
