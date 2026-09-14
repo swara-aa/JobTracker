@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import unittest
@@ -125,6 +125,7 @@ class DigestTests(unittest.TestCase):
         )
 
         self.assertIn("82/100", body)
+        self.assertIn("Priority signals: None detected", body)
         self.assertIn("Matched skills: Campaign Analytics, Content Strategy", body)
         self.assertIn("Missing/weak signals: HubSpot", body)
         self.assertIn("Description: Create content strategy", body)
@@ -281,6 +282,78 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual([match["title"] for match in matches], ["Great Match"])
         self.assertEqual(matches[0]["score"], 95)
+
+    def test_digest_ranks_qualified_jobs_by_company_priority_signals(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            now = datetime.now(timezone.utc)
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+                patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
+                patch(
+                    "job_agent.digest.get_company_attributes",
+                    side_effect=lambda company_name: {
+                        "fortune_500": company_name == "Microsoft",
+                        "sponsors_h1b": company_name == "Microsoft",
+                        "hires_software_engineers": company_name == "Microsoft",
+                    },
+                ),
+                patch(
+                    "job_agent.digest._digest_score",
+                    return_value=(
+                        {
+                            "score": 92,
+                            "rationale": "Strong match.",
+                            "evidence": ["Python"],
+                            "missing": [],
+                            "hard_no": False,
+                        },
+                        "Gemini",
+                    ),
+                ),
+            ):
+                subscriber = subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Software Engineering"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=RESUME_TEXT,
+                )
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="StartupCo",
+                            location="San Francisco, CA",
+                            posting_date=now,
+                            link="https://example.test/startup",
+                            description="Build Python services for user-facing applications.",
+                        ),
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Microsoft",
+                            location="San Francisco, CA",
+                            posting_date=now - timedelta(days=2),
+                            link="https://example.test/microsoft",
+                            description="Build Python services for cloud products with reliable APIs.",
+                        ),
+                    ]
+                )
+                subscriber_record = active_digest_subscribers()[0] | subscriber
+                matches = top_digest_matches(subscriber_record)
+
+        self.assertEqual([match["company"] for match in matches], ["Microsoft", "StartupCo"])
+        self.assertIn("Fortune 500", matches[0]["priority_signals"])
+        self.assertIn("visa-friendly signal", matches[0]["priority_signals"])
+        self.assertIn("software hiring signal", matches[0]["priority_signals"])
 
 
 if __name__ == "__main__":

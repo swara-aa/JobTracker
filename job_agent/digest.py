@@ -12,6 +12,7 @@ from typing import Any
 
 from job_agent import config
 from job_agent.classification import infer_role_family, location_matches
+from job_agent.company_intelligence import get_company_attributes
 from job_agent.config import DB_PATH, get_user_setting
 from job_agent.database import backend_name, connect
 from job_agent.gemini_analysis import API_URL, DEFAULT_MODEL, _post_with_retries
@@ -22,10 +23,18 @@ from job_agent.storage import ensure_database, fetch_jobs
 FREE_DIGEST_LIMIT = 10
 PRO_DIGEST_LIMIT = 25
 MAX_CANDIDATES = 30
+DIGEST_PREFILTER_CANDIDATES = 120
 MAX_DIGEST_DESCRIPTION_LENGTH = 5000
 MAX_DIGEST_RESUME_LENGTH = 12000
 EMAIL_DESCRIPTION_LENGTH = 260
 SMTP_TIMEOUT_SECONDS = 8
+DIGEST_FORTUNE_500_BONUS = 5
+DIGEST_H1B_FILING_BONUS = 4
+DIGEST_VISA_FRIENDLY_BONUS = 4
+DIGEST_ROLE_HIRING_BONUS = 3
+DIGEST_FRESH_24H_BONUS = 4
+DIGEST_FRESH_3D_BONUS = 2
+DIGEST_DESCRIPTION_BONUS = 1
 logger = logging.getLogger(__name__)
 
 DIGEST_SCORE_SCHEMA = {
@@ -275,24 +284,19 @@ def top_digest_matches(
         and _role_matches(job, roles)
         and location_matches(str(job.get("location") or ""), location)
     ]
-    jobs.sort(
-        key=lambda job: (
-            _posted_at(job),
-            int(job.get("resume_match_score") or job.get("local_match_score") or 0),
-        ),
-        reverse=True,
-    )
-    candidates = jobs[: max(MAX_CANDIDATES, limit)]
+    jobs.sort(key=_digest_prefilter_key, reverse=True)
+    candidates = jobs[: max(DIGEST_PREFILTER_CANDIDATES, MAX_CANDIDATES, limit)]
     local_ranked = []
     for job in candidates:
         score, score_source = _digest_score(job, resume)
         local_ranked.append(_format_digest_match(job, score, score_source))
-    local_ranked.sort(key=lambda item: int(item["score"]), reverse=True)
+    local_ranked.sort(key=_digest_rank_key, reverse=True)
     gemini_ranked = (
         _score_digest_with_gemini(resume, local_ranked[:MAX_CANDIDATES])
         if use_gemini and pro_plan
         else []
     )
+    gemini_ranked.sort(key=_digest_rank_key, reverse=True)
     ranked = gemini_ranked or local_ranked
     qualified = [
         match
@@ -300,6 +304,64 @@ def top_digest_matches(
         if not match.get("hard_no") and int(match.get("score") or 0) >= config.DIGEST_MIN_SCORE
     ]
     return qualified[:limit]
+
+
+def _digest_prefilter_key(job: dict[str, object]) -> tuple[int, int, datetime]:
+    """Cheap ranking before subscriber-specific scoring and optional Gemini calls."""
+    stored_score = int(job.get("resume_match_score") or job.get("local_match_score") or 0)
+    return (
+        stored_score + _company_priority_bonus(job) + _freshness_bonus(job),
+        stored_score,
+        _posted_at(job),
+    )
+
+
+def _digest_rank_key(match: dict[str, object]) -> tuple[int, int, datetime]:
+    """Final digest ranking: match quality first, then company and freshness signals."""
+    score = int(match.get("score") or 0)
+    return (
+        score + _company_priority_bonus(match) + _freshness_bonus(match) + _description_bonus(match),
+        score,
+        _posted_at(match),
+    )
+
+
+def _company_priority_bonus(job: dict[str, object]) -> int:
+    company = get_company_attributes(str(job.get("company") or ""))
+    bonus = 0
+    if company.get("fortune_500") is True:
+        bonus += DIGEST_FORTUNE_500_BONUS
+    if int(job.get("h1b_filings") or 0) > 0:
+        bonus += DIGEST_H1B_FILING_BONUS
+    if company.get("visa_friendly") is True or company.get("sponsors_h1b") is True:
+        bonus += DIGEST_VISA_FRIENDLY_BONUS
+
+    role_text = _normalize(f"{job.get('role_query') or ''} {job.get('title') or ''}")
+    if company.get("hires_entry_level") is True:
+        bonus += DIGEST_ROLE_HIRING_BONUS
+    if company.get("hires_software_engineers") is True and any(
+        term in role_text for term in ("software", "developer", "backend", "frontend", "fullstack")
+    ):
+        bonus += DIGEST_ROLE_HIRING_BONUS
+    if company.get("hires_ai_ml") is True and any(
+        term in role_text for term in ("ai", "machine learning", "ml", "data science", "llm")
+    ):
+        bonus += DIGEST_ROLE_HIRING_BONUS
+    return bonus
+
+
+def _freshness_bonus(job: dict[str, object]) -> int:
+    posted_at = _posted_at(job)
+    age = datetime.now(timezone.utc) - posted_at
+    if age <= timedelta(hours=24):
+        return DIGEST_FRESH_24H_BONUS
+    if age <= timedelta(days=3):
+        return DIGEST_FRESH_3D_BONUS
+    return 0
+
+
+def _description_bonus(job: dict[str, object]) -> int:
+    return DIGEST_DESCRIPTION_BONUS if len(str(job.get("description") or "").strip()) >= 200 else 0
 
 
 def _score_digest_with_gemini(
@@ -391,6 +453,8 @@ def _format_digest_match(
         "workplace_type": job.get("workplace_type", ""),
         "employment_type": job.get("employment_type", ""),
         "source": job.get("source", ""),
+        "h1b_filings": int(job.get("h1b_filings") or 0),
+        "visa_assessment": job.get("visa_assessment", ""),
         "score": int(score.get("score") or 0),
         "score_source": score_source,
         "rationale": str(score.get("rationale") or "Strongest available match based on resume and job keywords."),
@@ -398,6 +462,7 @@ def _format_digest_match(
         "missing_skills": score.get("missing") or [],
         "hard_no": bool(score.get("hard_no")),
         "posting_date": job.get("posting_date", ""),
+        "priority_signals": _priority_signals(job),
     }
 
 
@@ -490,6 +555,7 @@ def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]
             f"{index}. {match['title']} at {match['company']} - {match['score']}/100 ({match['score_source']})",
             f"   Role: {match['role_query']}",
             f"   Location: {match['location']}",
+            f"   Priority signals: {_format_list(match.get('priority_signals'))}",
             f"   Why: {match['rationale']}",
             f"   Matched skills: {matched_skills}",
         ])
@@ -521,6 +587,7 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
                 <div style="color:#53616f;margin:3px 0 8px;">{_escape(match['company'])} · {_escape(match['location'])}</div>
                 <div style="display:inline-block;background:#f5d9cb;color:#8a3b2f;border-radius:999px;padding:5px 10px;font-weight:bold;">{match['score']}/100 {_escape(match['score_source'])} match</div>
                 <div style="margin-top:10px;color:#202b36;"><strong>Role:</strong> {_escape(match['role_query'])}</div>
+                <div style="margin-top:8px;color:#202b36;"><strong>Priority signals:</strong> {_escape(_format_list(match.get('priority_signals')))}</div>
                 <div style="margin-top:8px;color:#202b36;"><strong>Why it matched:</strong> {_escape(match['rationale'])}</div>
                 <div style="margin-top:8px;color:#196a51;"><strong>Matched skills:</strong> {_escape(matched_skills)}</div>
                 {_pro_html_details(details, missing_skills, description) if pro_plan else ''}
@@ -548,6 +615,37 @@ def _posted_at(job: dict[str, object]) -> datetime:
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _priority_signals(job: dict[str, object]) -> list[str]:
+    signals: list[str] = []
+    company = get_company_attributes(str(job.get("company") or ""))
+    if company.get("fortune_500") is True:
+        signals.append("Fortune 500")
+    h1b_filings = int(job.get("h1b_filings") or 0)
+    if h1b_filings > 0:
+        signals.append(f"{h1b_filings} H-1B filing{'s' if h1b_filings != 1 else ''}")
+    if company.get("visa_friendly") is True or company.get("sponsors_h1b") is True:
+        signals.append("visa-friendly signal")
+    if company.get("hires_entry_level") is True:
+        signals.append("entry-level hiring signal")
+    role_text = _normalize(f"{job.get('role_query') or ''} {job.get('title') or ''}")
+    if company.get("hires_software_engineers") is True and any(
+        term in role_text for term in ("software", "developer", "backend", "frontend", "fullstack")
+    ):
+        signals.append("software hiring signal")
+    if company.get("hires_ai_ml") is True and any(
+        term in role_text for term in ("ai", "machine learning", "ml", "data science", "llm")
+    ):
+        signals.append("AI/ML hiring signal")
+    freshness = _freshness_bonus(job)
+    if freshness >= DIGEST_FRESH_24H_BONUS:
+        signals.append("posted in last 24h")
+    elif freshness:
+        signals.append("posted in last 3 days")
+    if _description_bonus(job):
+        signals.append("full description captured")
+    return signals or ["resume match"]
 
 
 def _normalize_email(value: str) -> str:
