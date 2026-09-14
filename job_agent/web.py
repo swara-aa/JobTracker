@@ -397,7 +397,7 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
-        all_jobs = fetch_jobs()
+        all_jobs = fetch_jobs(gemini_scored_only=True)
         verification_reasons = verification_reasons_by_job(all_jobs)
         active_jobs = [
             job
@@ -503,6 +503,7 @@ def create_app() -> Flask:
             company=company,
             visa=visa,
             application_status=application_status,
+            gemini_scored_only=True,
         )
         matching_jobs = _filter_dashboard_jobs(
             matching_jobs, posted_within, minimum_score, maximum_score

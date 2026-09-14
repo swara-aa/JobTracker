@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
+import sqlite3
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -201,6 +202,56 @@ class StorageClassificationTests(unittest.TestCase):
         self.assertEqual(job["application_status"], "Applied")
         self.assertEqual(job["applied_date"], "2026-09-14")
         self.assertTrue(str(job["applied_at"]).strip())
+
+    def test_gemini_scored_filter_hides_unscored_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                saved_ids = save_jobs_with_ids(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Scored Software Engineer",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/scored",
+                        ),
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Unscored Software Engineer",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/unscored",
+                        ),
+                    ]
+                )
+                with sqlite3.connect(database_path) as connection:
+                    resume_id = connection.execute(
+                        """
+                        INSERT INTO resumes (name, filename, content)
+                        VALUES (?, ?, ?)
+                        """,
+                        ("Resume", "resume.txt", "Python developer"),
+                    ).lastrowid
+                    connection.execute(
+                        """
+                        INSERT INTO resume_job_matches (job_id, resume_id, score, is_best)
+                        VALUES (?, ?, ?, ?)
+                        """,
+                        (saved_ids[0], resume_id, 92, 1),
+                    )
+                    connection.commit()
+
+                jobs = fetch_jobs(gemini_scored_only=True)
+
+        self.assertEqual([job["id"] for job in jobs], [saved_ids[0]])
 
     def test_reposted_same_company_title_location_is_deduped(self) -> None:
         posted_at = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)

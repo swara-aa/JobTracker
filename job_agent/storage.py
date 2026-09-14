@@ -613,6 +613,7 @@ def fetch_jobs(
     company: str = "",
     visa: str = "",
     application_status: str = "",
+    gemini_scored_only: bool = False,
 ) -> list[dict[str, str]]:
     ensure_database()
     query = """
@@ -639,6 +640,7 @@ def fetch_jobs(
           AND (? = '' OR lower(jobs.company) LIKE '%' || lower(?) || '%')
           AND (? = '' OR jobs.visa_assessment = ?)
           AND (? = '' OR jobs.application_status = ?)
+          AND (? = 0 OR matches.score IS NOT NULL)
         ORDER BY jobs.posting_date DESC
     """
 
@@ -656,6 +658,7 @@ def fetch_jobs(
                 visa,
                 application_status,
                 application_status,
+                1 if gemini_scored_only else 0,
             ),
         ).fetchall()
 
