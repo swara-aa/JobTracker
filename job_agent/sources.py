@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 import re
-from typing import Iterable
+from typing import Iterable, NamedTuple
 from urllib.parse import quote
 
 import requests
@@ -19,6 +19,15 @@ from job_agent.filters import (
 from job_agent.models import JobPosting
 
 
+class SourcePosting(NamedTuple):
+    title: str
+    company: str
+    location: str
+    posted_at: datetime
+    link: str
+    description: str
+
+
 class BaseSource(ABC):
     name: str
 
@@ -30,10 +39,17 @@ class BaseSource(ABC):
     def fetch(self, role_query: str) -> Iterable[JobPosting]:
         raise NotImplementedError
 
-    def _keep(self, role_query: str, title: str, location: str, posted_at: datetime) -> bool:
+    def _keep(
+        self,
+        role_query: str,
+        title: str,
+        location: str,
+        posted_at: datetime,
+        description: str = "",
+    ) -> bool:
         return (
-            matches_role_query(title, role_query)
-            and is_entry_level(title)
+            matches_role_query(title, role_query, description)
+            and (not config.ENTRY_LEVEL_ONLY or is_entry_level(title))
             and looks_like_usa_location(location)
             and posted_within_last_7_days(posted_at)
         )
@@ -68,7 +84,7 @@ class RemoteOkSource(BaseSource):
                 else _parse_iso_datetime(posted_value)
             )
 
-            if not self._keep(role_query, title, location, posted_at):
+            if not self._keep(role_query, title, location, posted_at, description):
                 continue
 
             yield JobPosting(
@@ -173,8 +189,33 @@ class GreenhouseSource(BaseSource):
     def __init__(self, boards: list[tuple[str, str]]) -> None:
         super().__init__()
         self.boards = boards
+        self._postings_cache: list[SourcePosting] | None = None
 
     def fetch(self, role_query: str) -> Iterable[JobPosting]:
+        for posting in self._postings():
+            if not self._keep(
+                role_query,
+                posting.title,
+                posting.location,
+                posting.posted_at,
+                posting.description,
+            ):
+                continue
+            yield JobPosting(
+                self.name,
+                role_query,
+                posting.title,
+                posting.company,
+                posting.location,
+                posting.posted_at,
+                posting.link,
+                description=posting.description,
+            )
+
+    def _postings(self) -> list[SourcePosting]:
+        if self._postings_cache is not None:
+            return self._postings_cache
+        postings: list[SourcePosting] = []
         for board, company in self.boards:
             response = self.session.get(
                 f"https://boards-api.greenhouse.io/v1/boards/{quote(board)}/jobs?content=true",
@@ -190,17 +231,11 @@ class GreenhouseSource(BaseSource):
                 if not all([title, location, link, updated_at]):
                     continue
                 posted_at = _parse_iso_datetime(updated_at)
-                if self._keep(role_query, title, location, posted_at):
-                    yield JobPosting(
-                        self.name,
-                        role_query,
-                        title,
-                        company,
-                        location,
-                        posted_at,
-                        link,
-                        description=description,
-                    )
+                postings.append(
+                    SourcePosting(title, company, location, posted_at, link, description)
+                )
+        self._postings_cache = postings
+        return postings
 
 
 class LeverSource(BaseSource):
@@ -209,8 +244,34 @@ class LeverSource(BaseSource):
     def __init__(self, sites: list[tuple[str, str]]) -> None:
         super().__init__()
         self.sites = sites
+        self._postings_cache: list[SourcePosting] | None = None
 
     def fetch(self, role_query: str) -> Iterable[JobPosting]:
+        for posting in self._postings():
+            if not self._keep(
+                role_query,
+                posting.title,
+                posting.location,
+                posting.posted_at,
+                posting.description,
+            ):
+                continue
+            yield JobPosting(
+                self.name,
+                role_query,
+                posting.title,
+                posting.company,
+                posting.location,
+                posting.posted_at,
+                posting.link,
+                workplace_type="Remote" if "remote" in posting.location.lower() else "",
+                description=posting.description,
+            )
+
+    def _postings(self) -> list[SourcePosting]:
+        if self._postings_cache is not None:
+            return self._postings_cache
+        postings: list[SourcePosting] = []
         for site, company in self.sites:
             response = self.session.get(
                 f"https://api.lever.co/v0/postings/{quote(site)}?mode=json",
@@ -228,18 +289,11 @@ class LeverSource(BaseSource):
                 if not all([title, location, link, created_ms]):
                     continue
                 posted_at = datetime.fromtimestamp(int(created_ms) / 1000, tz=timezone.utc)
-                if self._keep(role_query, title, location, posted_at):
-                    yield JobPosting(
-                        self.name,
-                        role_query,
-                        title,
-                        company,
-                        location,
-                        posted_at,
-                        link,
-                        workplace_type="Remote" if "remote" in location.lower() else "",
-                        description=description,
-                    )
+                postings.append(
+                    SourcePosting(title, company, location, posted_at, link, description)
+                )
+        self._postings_cache = postings
+        return postings
 
 
 class WorkdaySource(BaseSource):

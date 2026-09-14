@@ -161,3 +161,10 @@ ENTRY_LEVEL_NEGATIVE_KEYWORDS = [
     "7+ years",
     "10+ years",
 ]
+
+ENTRY_LEVEL_ONLY = os.getenv("JOB_AGENT_ENTRY_LEVEL_ONLY", "false").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}

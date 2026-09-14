@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import re
 
 from job_agent import config
+from job_agent.classification import ROLE_FAMILIES
 
 
 USA_STATE_CODES = {
@@ -88,12 +89,31 @@ def is_entry_level(title: str) -> bool:
     return any(keyword in normalized for keyword in config.ENTRY_LEVEL_POSITIVE_KEYWORDS)
 
 
-def matches_role_query(title: str, role_query: str) -> bool:
+def matches_role_query(title: str, role_query: str, description: str = "") -> bool:
     normalized_title = normalize_text(title)
+    normalized_text = normalize_text(f"{title} {description[:5000]}")
     normalized_query = normalize_text(role_query)
 
-    if normalized_query == "software engineer":
-        return "software engineer" in normalized_title or "software developer" in normalized_title
+    family_keywords = {
+        normalize_text(label): keywords
+        for label, keywords in ROLE_FAMILIES
+    }
+    if normalized_query in family_keywords:
+        return any(keyword in normalized_text for keyword in family_keywords[normalized_query])
+
+    if normalized_query in {"software engineer", "software engineering"}:
+        return any(
+            phrase in normalized_text
+            for phrase in [
+                "software engineer",
+                "software developer",
+                "frontend",
+                "front end",
+                "backend",
+                "back end",
+                "full stack",
+            ]
+        )
 
     if normalized_query == "ai/ml engineer":
         return any(
@@ -107,7 +127,7 @@ def matches_role_query(title: str, role_query: str) -> bool:
             ]
         )
 
-    return normalized_query in normalized_title
+    return normalized_query in normalized_text
 
 
 def normalize_text(value: str) -> str:

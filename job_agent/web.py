@@ -711,15 +711,10 @@ def create_app() -> Flask:
 
     @app.post("/operations/collect-public-boards")
     def collect_public_boards():
-        from job_agent.automation import schedule_public_postprocessing
-        from job_agent.collector import run_collection_and_prepare_matches
+        from job_agent.automation import request_public_collection_now
 
-        result = run_collection_and_prepare_matches(submit_gemini=False)
-        schedule_public_postprocessing(result["saved_job_ids"])
-        message = (
-            f"Saved {result['saved']} new public-board job(s); "
-            f"locally scored {result['local_scored']}. {result['gemini_batch_message']}"
-        )
+        request_public_collection_now()
+        message = "Public-board collection was queued. The automation worker will run it in the background."
         return redirect(url_for("operations", message=message))
 
     @app.post("/jobs/submit-gemini-batch")

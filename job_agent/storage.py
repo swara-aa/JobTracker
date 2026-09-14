@@ -402,7 +402,7 @@ def _dedupe_text(value: str) -> str:
 
 def job_count() -> int:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         row = connection.execute("SELECT COUNT(*) FROM jobs").fetchone()
     return int(row[0])
 
@@ -413,7 +413,7 @@ def existing_job_links(links: Iterable[str]) -> set[str]:
         return set()
     ensure_database()
     placeholders = ", ".join("?" for _ in unique_links)
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             f"SELECT link FROM jobs WHERE link IN ({placeholders})",
             unique_links,
@@ -427,7 +427,7 @@ def job_ids_for_links(links: Iterable[str]) -> list[int]:
         return []
     ensure_database()
     placeholders = ", ".join("?" for _ in unique_links)
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             f"SELECT id FROM jobs WHERE link IN ({placeholders}) ORDER BY id",
             unique_links,
@@ -438,7 +438,7 @@ def job_ids_for_links(links: Iterable[str]) -> list[int]:
 def job_ids_for_public_backfill(limit: int) -> list[int]:
     safe_limit = max(1, min(int(limit), 60))
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             """
             SELECT id
@@ -455,7 +455,7 @@ def job_ids_for_public_backfill(limit: int) -> list[int]:
 
 def public_description_missing_count() -> int:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         row = connection.execute(
             """
             SELECT COUNT(*)
@@ -469,7 +469,7 @@ def public_description_missing_count() -> int:
 
 def job_ids_without_gemini_match() -> list[int]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             """
             SELECT jobs.id
@@ -485,7 +485,7 @@ def job_ids_without_gemini_match() -> list[int]:
 
 def described_job_ids_without_gemini_match() -> list[int]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             """
             SELECT jobs.id
@@ -504,7 +504,7 @@ def described_job_ids_without_gemini_match() -> list[int]:
 def described_job_ids_without_local_score(limit: int = 200) -> list[int]:
     """Return described, active jobs that still need an offline resume score."""
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             """
             SELECT id
@@ -523,7 +523,7 @@ def described_job_ids_without_local_score(limit: int = 200) -> list[int]:
 def save_linkedin_descriptions(items: Iterable[dict[str, str]]) -> list[int]:
     ensure_database()
     updated_job_ids: list[int] = []
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         for item in items:
             link = str(item.get("link") or "").strip()
             description = str(item.get("description") or "").strip()[:50000]
@@ -555,7 +555,7 @@ def save_linkedin_public_capture(link: str, description: str, metadata: dict[str
     normalized_description = str(description or "").strip()[:50000]
     if not normalized_link:
         return []
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         row = connection.execute(
             "SELECT id, description FROM jobs WHERE source = 'LinkedIn Review' AND link = ?",
             (normalized_link,),
@@ -648,8 +648,9 @@ def _storage_connection() -> sqlite3.Connection | PostgresConnection:
 
 def fetch_job(job_id: int) -> dict[str, object] | None:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         row = connection.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
     return dict(row) if row else None
 
@@ -662,8 +663,9 @@ def analytics_summary(days: int = 30) -> dict[str, object]:
     start_value = start_date.isoformat()
     today_value = today.isoformat()
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         overview = dict(
             connection.execute(
                 """
@@ -812,7 +814,7 @@ def distinct_values(column: str) -> list[str]:
         raise ValueError(f"Unsupported column: {column}")
 
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             f"""
             SELECT DISTINCT {column}
@@ -837,7 +839,7 @@ def update_job_pipeline(
     follow_up_date: str,
 ) -> bool:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         cursor = connection.execute(
             """
             UPDATE jobs
@@ -867,7 +869,7 @@ def update_job_pipeline(
 
 def skill_gap_summary(limit: int = 20) -> list[dict[str, object]]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         rows = connection.execute(
             """
             SELECT missing_skills
@@ -896,8 +898,9 @@ def skill_gap_summary(limit: int = 20) -> list[dict[str, object]]:
 
 def fetch_resumes() -> list[dict[str, object]]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         rows = connection.execute(
             "SELECT id, name, filename, content, uploaded_at FROM resumes ORDER BY id"
         ).fetchall()
@@ -906,21 +909,30 @@ def fetch_resumes() -> list[dict[str, object]]:
 
 def save_resume(name: str, filename: str, content: str) -> int:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         count = int(connection.execute("SELECT COUNT(*) FROM resumes").fetchone()[0])
         if count >= 4:
             raise ValueError("The resume library already contains four resumes.")
-        cursor = connection.execute(
-            "INSERT INTO resumes (name, filename, content) VALUES (?, ?, ?)",
-            (name, filename, content),
-        )
+        if backend_name() == "postgresql":
+            cursor = connection.execute(
+                "INSERT INTO resumes (name, filename, content) VALUES (?, ?, ?) RETURNING id",
+                (name, filename, content),
+            )
+            row = cursor.fetchone()
+            resume_id = int(row[0]) if row else 0
+        else:
+            cursor = connection.execute(
+                "INSERT INTO resumes (name, filename, content) VALUES (?, ?, ?)",
+                (name, filename, content),
+            )
+            resume_id = int(cursor.lastrowid)
         connection.commit()
-        return int(cursor.lastrowid)
+        return resume_id
 
 
 def delete_resume(resume_id: int) -> bool:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         connection.execute(
             "DELETE FROM resume_job_matches WHERE resume_id = ?", (resume_id,)
         )
@@ -931,8 +943,9 @@ def delete_resume(resume_id: int) -> bool:
 
 def fetch_resume_matches(job_id: int) -> list[dict[str, object]]:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         rows = connection.execute(
             """
             SELECT m.*, r.name, r.filename
@@ -948,8 +961,9 @@ def fetch_resume_matches(job_id: int) -> list[dict[str, object]]:
 
 def fetch_application_helper(job_id: int, resume_id: int) -> dict[str, object] | None:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
-        connection.row_factory = sqlite3.Row
+    with _storage_connection() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
         row = connection.execute(
             """
             SELECT job_id, resume_id, content, model, generated_at
@@ -970,7 +984,7 @@ def save_application_helper(
     generated_at: str,
 ) -> None:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with _storage_connection() as connection:
         connection.execute(
             """
             INSERT INTO application_helpers (job_id, resume_id, content, model, generated_at)

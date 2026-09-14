@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
-from job_agent.config import DB_PATH, get_user_setting
+from job_agent.config import get_user_setting
+from job_agent.database import connect
 from job_agent.gemini_analysis import API_URL, DEFAULT_MODEL, _post_with_retries, fetch_public_job_description
 from job_agent.storage import ensure_database, fetch_job, fetch_resumes, save_application_helper
 
@@ -122,6 +122,6 @@ def _parse_helper_response(response_text: str) -> dict[str, Any]:
 
 def _save_description(job_id: int, description: str) -> None:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         connection.execute("UPDATE jobs SET description = ? WHERE id = ?", (description, job_id))
         connection.commit()

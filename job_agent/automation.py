@@ -27,7 +27,7 @@ PUBLIC_GEMINI_DELAY_SECONDS = 15 * 60
 RETRY_GEMINI_DELAY_SECONDS = 2 * 60
 MAX_DAILY_BATCH_SUBMISSIONS = 3
 MAX_DAILY_BATCH_FAILURES = 3
-GEMINI_SUBMISSION_STATE_VERSION = "batch-file-readiness-v2"
+GEMINI_SUBMISSION_STATE_VERSION = "batch-noop-safe-v3"
 _state_lock = Lock()
 _thread_lock = Lock()
 _wake = Event()
@@ -125,6 +125,19 @@ def schedule_public_postprocessing(job_ids: list[int]) -> dict[str, object]:
                 f"Saved {len(job_ids)} public-board job(s). Gemini will run "
                 "after the quiet period."
             ),
+        }
+    )
+    _write_state(state)
+    _wake.set()
+    return automation_status()
+
+
+def request_public_collection_now() -> dict[str, object]:
+    state = _read_state()
+    state.update(
+        {
+            "force_public_collection_pending": True,
+            "message": "Public-board collection has been queued for the automation worker.",
         }
     )
     _write_state(state)
@@ -259,14 +272,16 @@ def _maybe_collect_public_boards() -> None:
     now = _now()
     today = now.date().isoformat()
     state = _read_state()
-    if state.get("last_public_collection_date") == today:
+    force_run = bool(state.get("force_public_collection_pending"))
+    if state.get("last_public_collection_date") == today and not force_run:
         return
     hour, minute = _automation_time()
-    if (now.hour, now.minute) < (hour, minute):
+    if (now.hour, now.minute) < (hour, minute) and not force_run:
         return
     state.update(
         {
             "last_public_collection_date": today,
+            "force_public_collection_pending": False,
             "message": "Collecting configured public job boards...",
         }
     )
@@ -452,12 +467,14 @@ def _maybe_submit_gemini_batch() -> None:
         _write_state(state)
         return
     state = _read_state()
+    update: dict[str, object] = {
+        "gemini_submission_failures": 0,
+        "message": str(batch["message"]),
+    }
+    if batch.get("active") or batch.get("submission_in_progress") or batch.get("name"):
+        update["batch_submissions"] = submissions + 1
     state.update(
-        {
-            "batch_submissions": submissions + 1,
-            "gemini_submission_failures": 0,
-            "message": str(batch["message"]),
-        }
+        update
     )
     _write_state(state)
 
@@ -603,6 +620,7 @@ def _default_state() -> dict[str, object]:
         "description_capture_not_before": "",
         "gemini_not_before": "",
         "last_batch_refresh_at": "",
+        "force_public_collection_pending": False,
         "batch_date": "",
         "batch_submissions": 0,
         "gemini_submission_failures": 0,

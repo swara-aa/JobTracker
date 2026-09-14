@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-import sqlite3
 from typing import Any
 
-from job_agent.config import DB_PATH, get_user_setting
+from job_agent.config import get_user_setting
+from job_agent.database import connect
 from job_agent.gemini_analysis import DEFAULT_MODEL, _post_with_retries, API_URL, fetch_public_job_description
 from job_agent.storage import ensure_database, fetch_job, fetch_resumes
 
@@ -251,7 +251,7 @@ def _validate_rankings(rankings: list[dict[str, Any]], expected_ids: set[int]) -
 
 def _save_job_description(job_id: int, description: str) -> None:
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         connection.execute("UPDATE jobs SET description = ? WHERE id = ?", (description, job_id))
         connection.commit()
 
@@ -260,7 +260,7 @@ def _save_rankings(job_id: int, rankings: list[dict[str, Any]]) -> None:
     best_id = max(rankings, key=lambda item: int(item["score"]))["resume_id"]
     analyzed_at = datetime.now(timezone.utc).isoformat()
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         connection.execute("DELETE FROM resume_job_matches WHERE job_id = ?", (job_id,))
         for item in rankings:
             connection.execute(

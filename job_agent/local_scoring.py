@@ -3,11 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import re
-import sqlite3
 from typing import Any
 
-from job_agent.config import DB_PATH
 from job_agent.company_intelligence import get_company
+from job_agent.database import connect
 from job_agent.local_scorer import extract_skills, required_and_preferred_text, semantic_similarity
 from job_agent.storage import ensure_database, fetch_jobs, fetch_resumes
 
@@ -89,7 +88,8 @@ def score_jobs_locally(job_ids: list[int]) -> dict[str, int]:
 
 def _store_local_scores(jobs: list[dict[str, Any]], resumes: list[dict[str, object]]) -> None:
     scored_at = datetime.now(timezone.utc).isoformat()
-    with sqlite3.connect(DB_PATH) as connection:
+    ensure_database()
+    with connect() as connection:
         for job in jobs:
             result = _best_resume_score(job, resumes)
             connection.execute(

@@ -10,7 +10,8 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
-from job_agent.config import DB_PATH, USER_AGENT, get_user_setting
+from job_agent.config import USER_AGENT, get_user_setting
+from job_agent.database import connect
 from job_agent.storage import ensure_database, fetch_job
 
 
@@ -355,9 +356,7 @@ def _save_description(job_id: int, description: str) -> None:
 
 
 def _execute_update(query: str, parameters: tuple[Any, ...]) -> None:
-    import sqlite3
-
     ensure_database()
-    with sqlite3.connect(DB_PATH) as connection:
+    with connect() as connection:
         connection.execute(query, parameters)
         connection.commit()
