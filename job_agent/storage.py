@@ -6,6 +6,7 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
+from threading import Lock
 from typing import Iterable
 
 from job_agent.classification import (
@@ -20,11 +21,36 @@ from job_agent.postgres_schema import schema_statements
 
 
 logger = logging.getLogger(__name__)
+_database_ready = False
+_database_ready_key = ""
+_database_ready_lock = Lock()
 
 
 def ensure_database() -> None:
+    global _database_ready, _database_ready_key
+    backend = backend_name()
+    if backend != "postgresql":
+        _ensure_database_uncached()
+        return
+
+    ready_key = backend
+    if _database_ready and _database_ready_key == ready_key:
+        return
+
+    with _database_ready_lock:
+        if _database_ready and _database_ready_key == ready_key:
+            return
+
+        _ensure_database_uncached()
+        _database_ready = True
+        _database_ready_key = ready_key
+
+
+def _ensure_database_uncached() -> None:
     if backend_name() == "postgresql":
         with postgres_connection() as connection:
+            connection.execute("SET LOCAL lock_timeout = '5s'")
+            connection.execute("SET LOCAL statement_timeout = '30s'")
             for statement in schema_statements():
                 connection.execute(statement)
             connection.execute(
@@ -846,7 +872,7 @@ def update_job_pipeline(
             SET application_status = ?, applied_date = ?, application_link = ?,
                 application_notes = ?, follow_up_date = ?,
                 applied_at = CASE
-                    WHEN ? = 'Applied' AND trim(applied_at) = '' THEN CURRENT_TIMESTAMP
+                    WHEN ? = 'Applied' AND trim(applied_at) = '' THEN CAST(CURRENT_TIMESTAMP AS TEXT)
                     WHEN ? <> 'Applied' THEN ''
                     ELSE applied_at
                 END

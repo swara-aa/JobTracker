@@ -10,9 +10,12 @@ from job_agent.models import JobPosting
 from job_agent.storage import (
     distinct_values,
     ensure_database,
+    fetch_job,
     fetch_jobs,
     save_jobs,
+    save_jobs_with_ids,
     today_scoring_summary,
+    update_job_pipeline,
 )
 
 
@@ -162,6 +165,42 @@ class StorageClassificationTests(unittest.TestCase):
         self.assertEqual(summary["described"], 1)
         self.assertEqual(summary["public_sources"], 1)
         self.assertEqual(summary["source_posted_today"], 1)
+
+    def test_applied_pipeline_update_sets_applied_timestamp(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                saved_ids = save_jobs_with_ids(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Software Engineer",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/applied",
+                            description="Build software.",
+                        )
+                    ]
+                )
+                updated = update_job_pipeline(
+                    saved_ids[0],
+                    "Applied",
+                    "2026-09-14",
+                    "https://example.test/apply",
+                    "Submitted online.",
+                    "",
+                )
+                job = fetch_job(saved_ids[0])
+
+        self.assertTrue(updated)
+        self.assertEqual(job["application_status"], "Applied")
+        self.assertEqual(job["applied_date"], "2026-09-14")
+        self.assertTrue(str(job["applied_at"]).strip())
 
     def test_reposted_same_company_title_location_is_deduped(self) -> None:
         posted_at = datetime(2026, 9, 9, 12, 0, tzinfo=timezone.utc)
