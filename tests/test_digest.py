@@ -10,6 +10,7 @@ from job_agent.digest import (
     _digest_score,
     _plain_digest,
     active_digest_subscribers,
+    send_digest_to_subscriber,
     subscribe_to_digest,
     top_digest_matches,
 )
@@ -60,6 +61,10 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 0),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
             ):
                 subscriber = subscribe_to_digest(
                     email="person@example.com",
@@ -160,6 +165,29 @@ class DigestTests(unittest.TestCase):
         self.assertNotIn("Missing/weak signals", body)
         self.assertNotIn("Description: Create content strategy", body)
 
+    def test_no_match_digest_sends_instead_of_silently_skipping(self) -> None:
+        subscriber = {
+            "id": 1,
+            "email": "person@example.com",
+            "name": "Person",
+            "plan": "free",
+        }
+        with (
+            patch("job_agent.digest.top_digest_matches", return_value=[]),
+            patch("job_agent.digest.config.SMTP_HOST", "smtp.example.com"),
+            patch("job_agent.digest.config.SMTP_PORT", 587),
+            patch("job_agent.digest.config.SMTP_USERNAME", "sender@example.com"),
+            patch("job_agent.digest.config.SMTP_PASSWORD", "secret"),
+            patch("job_agent.digest.smtplib.SMTP") as smtp,
+            patch("job_agent.digest._record_deliveries") as record_deliveries,
+        ):
+            result = send_digest_to_subscriber(subscriber, use_gemini=False)
+
+        self.assertTrue(result["sent"])
+        message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
+        self.assertEqual(message["Subject"], "No verified-open 90+ job matches today")
+        record_deliveries.assert_called_once_with(1, [])
+
     def test_digest_score_prefers_stored_gemini_match(self) -> None:
         score, source = _digest_score(
             {
@@ -186,6 +214,10 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
                 patch(
                     "job_agent.digest._digest_score",
                     return_value=(
@@ -236,6 +268,10 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value="fake-key"),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
                 patch(
                     "job_agent.digest._score_digest_with_gemini",
                     side_effect=lambda _resume, matches: [
@@ -293,6 +329,10 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
                 patch(
                     "job_agent.digest.get_company_attributes",
                     side_effect=lambda company_name: {

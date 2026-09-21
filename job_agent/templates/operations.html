@@ -27,9 +27,12 @@
           <div class="metric"><strong>{{ automation_status.public_jobs_saved or 0 }}</strong>public-board jobs in latest run</div>
           <div class="metric"><strong>{{ automation_status.linkedin_jobs_collected or 0 }}</strong>LinkedIn jobs in latest run</div>
           <div class="metric"><strong>{{ automation_status.batch_submissions or 0 }}/3</strong>Gemini batches submitted today<br><small>{{ automation_status.gemini_submission_failures or 0 }}/3 failed attempts</small></div>
+          <div class="metric"><strong>{{ automation_status.priority_gemini_scored or 0 }}</strong>recent jobs fast-scored today<br><small>{{ automation_status.priority_gemini_requests or 0 }} direct Gemini request(s)</small></div>
+          <div class="metric"><strong>{{ priority_gemini_waiting }}</strong>recent jobs waiting for fast scoring<br><small>{{ priority_gemini_daily_limit }} request daily limit</small></div>
         </div>
-        <p>Public boards run daily at {{ automation_public_collection_time }}. LinkedIn description capture begins two minutes after the extension finishes. Gemini batches are monitored and imported automatically every five minutes.</p>
+        <p>Public boards run daily at {{ automation_public_collection_time }} Central. LinkedIn description capture begins two minutes after the extension finishes. Recent jobs are Gemini-scored first; backlog batches are monitored every five minutes.</p>
         {% if automation_status.last_error %}<div class="warning">{{ automation_status.last_error }}</div>{% endif %}
+        {% if automation_status.priority_gemini_last_error %}<div class="warning">Recent-job Gemini scoring: {{ automation_status.priority_gemini_last_error }}</div>{% endif %}
       </section>
       <section class="panel"><h2>Workspace Status</h2><div class="grid">
         <div class="metric"><strong>{{ total_jobs }}</strong>saved jobs</div><div class="metric"><strong>{{ resume_count }}</strong>uploaded resumes</div>
@@ -62,7 +65,8 @@
         {% if gemini_status.running %}<div class="warning">A legacy live Gemini queue is still running: {{ gemini_status.pending }} pending. Restart Flask to stop it before using Batch.</div>{% endif %}
       </section>
       <section class="panel"><h2>Daily Email Digest</h2>
-        <p>Sends the top 10 matching jobs to every active subscriber immediately using the fast local scorer. The normal automatic send still runs once per day at 8:00 AM Central.</p>
+        <p>Sends qualifying 90+ matches after the morning Gemini scoring run. Automatic delivery runs at 9:15 AM Central and retries when no sendable matches are ready.</p>
+        <div class="grid"><div class="metric"><strong>{{ automation_status.last_digest_date or 'Not sent' }}</strong>last completed digest date</div><div class="metric"><strong>{{ automation_status.digest_attempts or 0 }}/3</strong>delivery attempts today</div></div>
         <form method="post" action="/operations/send-digest-now"><button type="submit">Send Digest Now</button></form>
       </section>
       <section class="panel"><h2>Public Description Capture</h2>

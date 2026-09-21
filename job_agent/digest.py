@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 import json
@@ -9,15 +10,17 @@ import secrets
 import smtplib
 import sqlite3
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_agent import config
+from job_agent.apply_readiness import ApplyReadiness, validate_apply_readiness
 from job_agent.classification import infer_role_family, location_matches
 from job_agent.company_intelligence import get_company_attributes
 from job_agent.config import DB_PATH, get_user_setting
 from job_agent.database import backend_name, connect
 from job_agent.gemini_analysis import API_URL, DEFAULT_MODEL, _post_with_retries
 from job_agent.local_scoring import _score_resume
-from job_agent.storage import ensure_database, fetch_jobs
+from job_agent.storage import ensure_database, fetch_jobs, save_apply_readiness_results
 
 
 FREE_DIGEST_LIMIT = 10
@@ -35,6 +38,7 @@ DIGEST_ROLE_HIRING_BONUS = 3
 DIGEST_FRESH_24H_BONUS = 4
 DIGEST_FRESH_3D_BONUS = 2
 DIGEST_DESCRIPTION_BONUS = 1
+APPLY_CHECK_WORKERS = 8
 logger = logging.getLogger(__name__)
 
 DIGEST_SCORE_SCHEMA = {
@@ -208,9 +212,14 @@ def send_daily_job_digests(*, use_gemini: bool = True) -> dict[str, int]:
     sent = 0
     skipped = 0
     failures = 0
+    readiness_cache: dict[str, ApplyReadiness] = {}
     for subscriber in active_digest_subscribers():
         try:
-            result = send_digest_to_subscriber(subscriber, use_gemini=use_gemini)
+            result = send_digest_to_subscriber(
+                subscriber,
+                use_gemini=use_gemini,
+                readiness_cache=readiness_cache,
+            )
             if result["sent"]:
                 sent += 1
             else:
@@ -225,21 +234,31 @@ def send_digest_to_subscriber(
     subscriber: dict[str, object],
     *,
     use_gemini: bool = True,
+    readiness_cache: dict[str, ApplyReadiness] | None = None,
 ) -> dict[str, object]:
-    matches = top_digest_matches(subscriber, use_gemini=use_gemini)
-    if not matches:
-        return {"sent": False, "matches": []}
+    matches = top_digest_matches(
+        subscriber,
+        use_gemini=use_gemini,
+        readiness_cache=readiness_cache,
+    )
     if not (config.SMTP_HOST and config.SMTP_USERNAME):
         return {"sent": False, "matches": matches}
 
     email = str(subscriber["email"])
     message = EmailMessage()
-    limit = _digest_limit(subscriber)
-    message["Subject"] = f"Your top {limit} job matches for today"
+    message["Subject"] = (
+        f"Your {len(matches)} verified-open job matches for today"
+        if matches
+        else "No verified-open 90+ job matches today"
+    )
     message["From"] = config.SMTP_USERNAME
     message["To"] = email
-    message.set_content(_plain_digest(subscriber, matches))
-    message.add_alternative(_html_digest(subscriber, matches), subtype="html")
+    if matches:
+        message.set_content(_plain_digest(subscriber, matches))
+        message.add_alternative(_html_digest(subscriber, matches), subtype="html")
+    else:
+        message.set_content(_plain_no_match_digest(subscriber))
+        message.add_alternative(_html_no_match_digest(subscriber), subtype="html")
     if config.SMTP_PORT == 465:
         server_context = smtplib.SMTP_SSL(
             config.SMTP_HOST,
@@ -265,6 +284,7 @@ def top_digest_matches(
     subscriber: dict[str, object],
     *,
     use_gemini: bool = True,
+    readiness_cache: dict[str, ApplyReadiness] | None = None,
 ) -> list[dict[str, object]]:
     limit = _digest_limit(subscriber)
     pro_plan = _is_pro_plan(subscriber)
@@ -280,7 +300,8 @@ def top_digest_matches(
         job
         for job in fetch_jobs()
         if int(job["id"]) not in delivered
-        and job.get("application_status") != "Closed"
+        and str(job.get("application_status") or "").lower() != "closed"
+        and _is_recent_enough(job)
         and _role_matches(job, roles)
         and location_matches(str(job.get("location") or ""), location)
     ]
@@ -291,19 +312,147 @@ def top_digest_matches(
         score, score_source = _digest_score(job, resume)
         local_ranked.append(_format_digest_match(job, score, score_source))
     local_ranked.sort(key=_digest_rank_key, reverse=True)
+    apply_ready_ranked = _verified_apply_ready_matches(
+        local_ranked,
+        readiness_cache=readiness_cache,
+    )
     gemini_ranked = (
-        _score_digest_with_gemini(resume, local_ranked[:MAX_CANDIDATES])
+        _score_digest_with_gemini(resume, apply_ready_ranked[:MAX_CANDIDATES])
         if use_gemini and pro_plan
         else []
     )
     gemini_ranked.sort(key=_digest_rank_key, reverse=True)
-    ranked = gemini_ranked or local_ranked
+    ranked = gemini_ranked or apply_ready_ranked
     qualified = [
         match
         for match in ranked
         if not match.get("hard_no") and int(match.get("score") or 0) >= config.DIGEST_MIN_SCORE
     ]
     return qualified[:limit]
+
+
+def _verified_apply_ready_matches(
+    matches: list[dict[str, object]],
+    *,
+    readiness_cache: dict[str, ApplyReadiness] | None = None,
+) -> list[dict[str, object]]:
+    cache = readiness_cache if readiness_cache is not None else {}
+    candidates = matches[: config.DIGEST_APPLY_CHECK_LIMIT]
+    outcomes: dict[int, ApplyReadiness] = {}
+    pending: list[dict[str, object]] = []
+    now = datetime.now(timezone.utc)
+
+    for match in candidates:
+        job_id = int(match["id"])
+        link = str(match.get("link") or "").strip()
+        cached = cache.get(link) or _stored_apply_readiness(match, now)
+        if cached is not None:
+            outcomes[job_id] = cached
+            cache[link] = cached
+        else:
+            pending.append(match)
+
+    if pending:
+        with ThreadPoolExecutor(max_workers=min(APPLY_CHECK_WORKERS, len(pending))) as executor:
+            futures = {
+                executor.submit(validate_apply_readiness, match): match
+                for match in pending
+            }
+            for future in as_completed(futures):
+                match = futures[future]
+                try:
+                    outcome = future.result()
+                except Exception as exc:
+                    logger.warning("Apply-readiness check failed for job %s: %s", match["id"], exc)
+                    outcome = ApplyReadiness(
+                        status="unverified",
+                        reason=f"Application check failed: {type(exc).__name__}",
+                        checked_at=datetime.now(timezone.utc).isoformat(),
+                        final_url=str(match.get("link") or ""),
+                    )
+                outcomes[int(match["id"])] = outcome
+                cache[str(match.get("link") or "").strip()] = outcome
+
+        try:
+            save_apply_readiness_results(
+                [
+                    {
+                        "job_id": int(match["id"]),
+                        "status": outcomes[int(match["id"])].status,
+                        "reason": outcomes[int(match["id"])].reason,
+                        "checked_at": outcomes[int(match["id"])].checked_at,
+                        "final_url": outcomes[int(match["id"])].final_url,
+                    }
+                    for match in pending
+                ]
+            )
+        except Exception as exc:
+            logger.warning("Could not save apply-readiness results: %s", exc)
+
+    verified: list[dict[str, object]] = []
+    for match in candidates:
+        outcome = outcomes.get(int(match["id"]))
+        if outcome is not None and outcome.is_open:
+            verified.append(
+                match
+                | {
+                    "apply_ready_status": outcome.status,
+                    "apply_ready_reason": outcome.reason,
+                    "apply_ready_checked_at": outcome.checked_at,
+                }
+            )
+    return verified
+
+
+def _stored_apply_readiness(
+    job: dict[str, object],
+    now: datetime,
+) -> ApplyReadiness | None:
+    status = str(job.get("apply_ready_status") or "").strip().lower()
+    checked_at = _parse_datetime(str(job.get("apply_ready_checked_at") or ""))
+    if status not in {"open", "closed", "unverified"} or checked_at is None:
+        return None
+    maximum_age = {
+        "open": timedelta(hours=2),
+        "closed": timedelta(hours=24),
+        "unverified": timedelta(minutes=30),
+    }[status]
+    if now - checked_at > maximum_age:
+        return None
+    return ApplyReadiness(
+        status=status,
+        reason=str(job.get("apply_ready_reason") or ""),
+        checked_at=checked_at.isoformat(),
+        final_url=str(job.get("apply_ready_url") or job.get("link") or ""),
+    )
+
+
+def _is_recent_enough(job: dict[str, object]) -> bool:
+    posted_at = _source_posted_at(job)
+    return datetime.now(timezone.utc) - posted_at <= timedelta(
+        days=config.DIGEST_MAX_JOB_AGE_DAYS
+    )
+
+
+def _source_posted_at(job: dict[str, object]) -> datetime:
+    for field in ("source_posted_at", "posting_date", "first_seen_at"):
+        parsed = _parse_datetime(str(job.get(field) or ""))
+        if parsed is not None:
+            return parsed
+    return datetime.now(timezone.utc) - timedelta(days=365)
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    normalized = value.strip().replace("Z", "+00:00")
+    if not normalized:
+        return None
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _digest_prefilter_key(job: dict[str, object]) -> tuple[int, int, datetime]:
@@ -462,6 +611,10 @@ def _format_digest_match(
         "missing_skills": score.get("missing") or [],
         "hard_no": bool(score.get("hard_no")),
         "posting_date": job.get("posting_date", ""),
+        "apply_ready_status": job.get("apply_ready_status", ""),
+        "apply_ready_reason": job.get("apply_ready_reason", ""),
+        "apply_ready_checked_at": job.get("apply_ready_checked_at", ""),
+        "apply_ready_url": job.get("apply_ready_url", ""),
         "priority_signals": _priority_signals(job),
     }
 
@@ -510,7 +663,10 @@ def _delivered_job_ids(subscriber_id: int) -> set[int]:
 
 
 def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> None:
-    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        today = datetime.now(ZoneInfo(config.DIGEST_TIMEZONE)).date().isoformat()
+    except ZoneInfoNotFoundError:
+        today = datetime.now(timezone.utc).date().isoformat()
     ensure_database()
     with connect() as connection:
         for match in matches:
@@ -541,7 +697,7 @@ def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]
     lines = [
         f"Hi {name},",
         "",
-        f"Here are your top {len(matches)} job matches for today. Scores are based on your resume, role preferences, location preference, and posting text.",
+        f"Here are your top {len(matches)} job matches for today. Each application page was checked before this email was sent. Scores are based on your resume, role preferences, location preference, and posting text.",
         "",
     ]
     if not pro_plan:
@@ -599,9 +755,34 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
     return f"""
     <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
       <h1 style="margin:0 0 12px;">Your top job matches</h1>
-      <p>Hi {_escape(name)}, here are the best new matches for your resume today. Scores use your resume, role preferences, location preference, and posting text.</p>
+      <p>Hi {_escape(name)}, here are the best new matches for your resume today. Each application page was checked before this email was sent. Scores use your resume, role preferences, location preference, and posting text.</p>
       {_free_upgrade_html() if not pro_plan else ''}
       <table width="100%" cellspacing="0" cellpadding="0">{''.join(items)}</table>
+    </div>
+    """
+
+
+def _plain_no_match_digest(subscriber: dict[str, object]) -> str:
+    name = str(subscriber.get("name") or "there").strip()
+    return "\n".join(
+        [
+            f"Hi {name},",
+            "",
+            "No new jobs both reached your 90+ match threshold and passed the live application-page check when today's digest was prepared.",
+            "JobTracker will keep collecting, scoring, and verifying new postings for tomorrow's email.",
+            "",
+            "You are receiving this because you subscribed to JobTracker daily matches.",
+        ]
+    )
+
+
+def _html_no_match_digest(subscriber: dict[str, object]) -> str:
+    name = str(subscriber.get("name") or "there").strip()
+    return f"""
+    <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
+      <h1 style="margin:0 0 12px;">No verified-open 90+ matches today</h1>
+      <p>Hi {_escape(name)}, no new jobs both reached your 90+ match threshold and passed the live application-page check when today's digest was prepared.</p>
+      <p>JobTracker will keep collecting, scoring, and verifying new postings for tomorrow's email.</p>
     </div>
     """
 

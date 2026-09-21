@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 from typing import Any
 
-from job_agent.config import DATA_DIR, get_user_setting
+from job_agent.config import DATA_DIR, GEMINI_BATCH_SIZE, get_user_setting
 from job_agent.resume_matcher import (
     MATCH_SCHEMA,
     MAX_MATCH_DESCRIPTION_LENGTH,
@@ -14,7 +14,11 @@ from job_agent.resume_matcher import (
     _save_rankings,
     _validate_rankings,
 )
-from job_agent.storage import fetch_job, fetch_resumes, job_ids_without_gemini_match
+from job_agent.storage import (
+    described_job_ids_without_gemini_match,
+    fetch_job,
+    fetch_resumes,
+)
 
 
 STATE_PATH = DATA_DIR / "gemini_batch_state.json"
@@ -25,7 +29,7 @@ FILE_READY_TIMEOUT_SECONDS = 120
 FILE_READY_POLL_SECONDS = 2
 
 
-def submit_gemini_resume_batch() -> dict[str, object]:
+def submit_gemini_resume_batch(job_ids: list[int] | None = None) -> dict[str, object]:
     state = batch_status(refresh=False)
     if state.get("active") or state.get("submission_in_progress"):
         raise ValueError("A Gemini batch submission is already active.")
@@ -35,7 +39,12 @@ def submit_gemini_resume_batch() -> dict[str, object]:
     resumes = fetch_resumes()
     if not resumes:
         raise ValueError("Upload at least one resume before submitting a Gemini batch.")
-    job_ids = [job_id for job_id in job_ids_without_gemini_match() if _has_description(job_id)]
+    candidate_ids = (
+        job_ids
+        if job_ids is not None
+        else described_job_ids_without_gemini_match(limit=GEMINI_BATCH_SIZE)
+    )
+    job_ids = [job_id for job_id in candidate_ids if _has_description(job_id)]
     if not job_ids:
         return {"active": False, "message": "No described jobs are waiting for Gemini scoring."}
     _write_requests(job_ids, resumes)

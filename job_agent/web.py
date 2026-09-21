@@ -5,6 +5,7 @@ import os
 import secrets
 from hmac import compare_digest
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, session, url_for
 
@@ -16,6 +17,8 @@ from job_agent.linkedin_review import (
 )
 from job_agent.config import (
     AUTOMATION_PUBLIC_COLLECTION_TIME,
+    DIGEST_TIMEZONE,
+    PRIORITY_GEMINI_DAILY_LIMIT,
     GREENHOUSE_BOARDS,
     LEVER_SITES,
     ROLE_QUERIES,
@@ -46,6 +49,7 @@ from job_agent.storage import (
     update_job_pipeline,
     ensure_database,
     today_scoring_summary,
+    recent_described_job_ids_without_gemini_match,
 )
 from job_agent.resume_library import extract_resume
 
@@ -691,6 +695,18 @@ def create_app() -> Flask:
         from job_agent.public_enrichment import overnight_public_backfill_status
         from job_agent.storage import job_ids_without_gemini_match, public_description_missing_count
 
+        try:
+            local_now = datetime.now(ZoneInfo(DIGEST_TIMEZONE))
+        except ZoneInfoNotFoundError:
+            local_now = datetime.now().astimezone()
+        local_day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        priority_waiting = len(
+            recent_described_job_ids_without_gemini_match(
+                limit=100,
+                collected_since=local_day_start,
+            )
+        )
+
         return render_template(
             "operations.html",
             total_jobs=job_count(),
@@ -703,11 +719,51 @@ def create_app() -> Flask:
             gemini_status=gemini_queue_status(),
             gemini_batch_status=batch_status(refresh=False),
             automation_status=automation_status(),
+            priority_gemini_waiting=priority_waiting,
+            priority_gemini_daily_limit=PRIORITY_GEMINI_DAILY_LIMIT,
             automation_public_collection_time=AUTOMATION_PUBLIC_COLLECTION_TIME,
             greenhouse_boards=configured_boards(GREENHOUSE_BOARDS),
             lever_sites=configured_boards(LEVER_SITES),
             workday_sites=configured_workday_sites(WORKDAY_SITES),
             message=request.args.get("message", "").strip(),
+        )
+
+    @app.get("/api/operations/status")
+    def operations_status():
+        from job_agent.automation import automation_status
+        from job_agent.gemini_batch import batch_status
+
+        try:
+            local_now = datetime.now(ZoneInfo(DIGEST_TIMEZONE))
+        except ZoneInfoNotFoundError:
+            local_now = datetime.now().astimezone()
+        local_day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        state = automation_status()
+        batch = batch_status(refresh=False)
+        return jsonify(
+            {
+                "automation": state,
+                "batch": {
+                    "active": bool(batch.get("active")),
+                    "submission_in_progress": bool(batch.get("submission_in_progress")),
+                    "provider_state": str(batch.get("provider_state") or ""),
+                    "total": int(batch.get("total") or 0),
+                    "completed": int(batch.get("completed") or 0),
+                    "failed": int(batch.get("failed") or 0),
+                    "message": str(batch.get("message") or ""),
+                },
+                "today_scoring": today_scoring_summary(local_now.date().isoformat()),
+                "priority_gemini": {
+                    "daily_limit": PRIORITY_GEMINI_DAILY_LIMIT,
+                    "eligible_waiting": len(
+                        recent_described_job_ids_without_gemini_match(
+                            limit=100,
+                            collected_since=local_day_start,
+                        )
+                    ),
+                },
+                "timezone": DIGEST_TIMEZONE,
+            }
         )
 
     @app.post("/operations/collect-public-boards")

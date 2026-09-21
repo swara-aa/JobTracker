@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS jobs (
     public_captured_at TEXT NOT NULL DEFAULT '', collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
     first_seen_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP::text,
     source_posted_at TEXT NOT NULL DEFAULT '',
+    apply_ready_status TEXT NOT NULL DEFAULT '', apply_ready_reason TEXT NOT NULL DEFAULT '',
+    apply_ready_checked_at TEXT NOT NULL DEFAULT '', apply_ready_url TEXT NOT NULL DEFAULT '',
     UNIQUE(source, link)
 );
 

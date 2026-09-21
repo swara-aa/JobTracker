@@ -13,6 +13,8 @@ from job_agent.config import (
     DATA_DIR,
     DIGEST_SEND_TIME,
     DIGEST_TIMEZONE,
+    GEMINI_BATCH_SIZE,
+    PRIORITY_GEMINI_DAILY_LIMIT,
     get_user_setting,
 )
 
@@ -25,6 +27,10 @@ LINKEDIN_CAPTURE_COOLDOWN_SECONDS = 2 * 60
 PUBLIC_CAPTURE_DELAY_SECONDS = 10 * 60
 PUBLIC_GEMINI_DELAY_SECONDS = 15 * 60
 RETRY_GEMINI_DELAY_SECONDS = 2 * 60
+PRIORITY_GEMINI_RETRY_SECONDS = 15 * 60
+PRIORITY_GEMINI_PER_TICK = 10
+DIGEST_RETRY_SECONDS = 30 * 60
+MAX_DAILY_DIGEST_ATTEMPTS = 3
 MAX_DAILY_BATCH_SUBMISSIONS = 3
 MAX_DAILY_BATCH_FAILURES = 3
 GEMINI_SUBMISSION_STATE_VERSION = "batch-noop-safe-v3"
@@ -184,6 +190,7 @@ def _tick() -> None:
     _maybe_collect_public_boards()
     _maybe_start_description_capture()
     _maybe_score_described_jobs_locally()
+    _maybe_score_recent_jobs_with_gemini()
     _maybe_refresh_gemini_batch()
     _maybe_submit_gemini_batch()
     _maybe_send_daily_digests()
@@ -255,21 +262,43 @@ def _reset_daily_batch_counter() -> None:
         )
         _write_state(state)
         return
-    today = _now().date().isoformat()
-    if state.get("batch_date") == today:
+    today = _digest_now().date().isoformat()
+    batch_is_current = state.get("batch_date") == today
+    priority_is_current = state.get("priority_gemini_date") == today
+    digest_is_current = state.get("digest_attempt_date") == today
+    if batch_is_current and priority_is_current and digest_is_current:
         return
-    state.update(
-        {
-            "batch_date": today,
-            "batch_submissions": 0,
-            "gemini_submission_failures": 0,
-        }
-    )
+    if not batch_is_current:
+        state.update(
+            {
+                "batch_date": today,
+                "batch_submissions": 0,
+                "gemini_submission_failures": 0,
+            }
+        )
+    if not priority_is_current:
+        state.update(
+            {
+                "priority_gemini_date": today,
+                "priority_gemini_requests": 0,
+                "priority_gemini_scored": 0,
+                "priority_gemini_retry_not_before": "",
+                "priority_gemini_last_error": "",
+            }
+        )
+    if not digest_is_current:
+        state.update(
+            {
+                "digest_attempt_date": today,
+                "digest_attempts": 0,
+                "digest_retry_not_before": "",
+            }
+        )
     _write_state(state)
 
 
 def _maybe_collect_public_boards() -> None:
-    now = _now()
+    now = _digest_now()
     today = now.date().isoformat()
     state = _read_state()
     force_run = bool(state.get("force_public_collection_pending"))
@@ -348,6 +377,68 @@ def _maybe_score_described_jobs_locally() -> None:
     _write_state(state)
 
 
+def _maybe_score_recent_jobs_with_gemini() -> None:
+    """Score new jobs promptly without waiting for a historical backlog batch."""
+    from job_agent.storage import (
+        fetch_resumes,
+        recent_described_job_ids_without_gemini_match,
+    )
+
+    state = _read_state()
+    retry_at = str(state.get("priority_gemini_retry_not_before") or "")
+    if retry_at and not _time_reached(retry_at):
+        return
+    requests_today = int(state.get("priority_gemini_requests") or 0)
+    remaining = PRIORITY_GEMINI_DAILY_LIMIT - requests_today
+    if remaining <= 0:
+        return
+    if not get_user_setting("GEMINI_API_KEY") or not fetch_resumes():
+        return
+    local_now = _digest_now()
+    local_day_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+    job_ids = recent_described_job_ids_without_gemini_match(
+        limit=min(PRIORITY_GEMINI_PER_TICK, remaining),
+        collected_since=local_day_start,
+    )
+    if not job_ids:
+        state["priority_gemini_retry_not_before"] = ""
+        _write_state(state)
+        return
+
+    _runtime["phase"] = "scoring recent jobs with Gemini"
+    from job_agent.resume_matcher import compare_resumes
+
+    completed = 0
+    last_error = ""
+    for job_id in job_ids:
+        requests_today += 1
+        try:
+            compare_resumes(job_id)
+            completed += 1
+        except Exception as exc:  # noqa: BLE001
+            last_error = str(exc).replace("\n", " ")[:240]
+            break
+
+    state = _read_state()
+    state["priority_gemini_requests"] = requests_today
+    state["priority_gemini_scored"] = (
+        int(state.get("priority_gemini_scored") or 0) + completed
+    )
+    state["priority_gemini_last_error"] = last_error
+    if last_error:
+        state["priority_gemini_retry_not_before"] = (
+            _now() + timedelta(seconds=PRIORITY_GEMINI_RETRY_SECONDS)
+        ).isoformat()
+        state["message"] = (
+            f"Gemini scored {completed} recent job(s), then paused: {last_error}. "
+            "Retrying in 15 minutes."
+        )
+    else:
+        state["priority_gemini_retry_not_before"] = ""
+        state["message"] = f"Gemini scored {completed} recent job(s) immediately."
+    _write_state(state)
+
+
 def _maybe_refresh_gemini_batch() -> None:
     from job_agent.gemini_batch import batch_status
 
@@ -402,7 +493,7 @@ def _maybe_submit_gemini_batch() -> None:
         )
         _write_state(state)
         return
-    job_ids = described_job_ids_without_gemini_match()
+    job_ids = described_job_ids_without_gemini_match(limit=GEMINI_BATCH_SIZE)
     if not job_ids:
         state.update(
             {
@@ -452,7 +543,7 @@ def _maybe_submit_gemini_batch() -> None:
     )
     _write_state(state)
     try:
-        batch = submit_gemini_resume_batch()
+        batch = submit_gemini_resume_batch(job_ids)
     except Exception as exc:
         state = _read_state()
         state.update(
@@ -485,6 +576,9 @@ def _maybe_send_daily_digests() -> None:
     state = _read_state()
     if state.get("last_digest_date") == today:
         return
+    retry_at = str(state.get("digest_retry_not_before") or "")
+    if retry_at and not _time_reached(retry_at):
+        return
     hour, minute = _digest_time()
     if (now.hour, now.minute) < (hour, minute):
         return
@@ -504,32 +598,72 @@ def _maybe_send_daily_digests() -> None:
     from job_agent.digest import send_daily_job_digests
 
     result = send_daily_job_digests()
-    state.update(
-        {
-            "last_digest_date": today,
-            "last_digest_finished_at": _now().isoformat(),
-            "message": (
-                f"Daily digest sent to {result['sent']} subscriber(s); "
-                f"{result['skipped']} skipped; {result['failures']} failed."
-            ),
-        }
-    )
+    attempts = int(state.get("digest_attempts") or 0) + 1
+    update: dict[str, object] = {
+        "digest_attempts": attempts,
+        "last_digest_finished_at": _now().isoformat(),
+    }
+    if int(result["sent"]) > 0 or not any(
+        int(result[key]) for key in ("skipped", "failures")
+    ):
+        update.update(
+            {
+                "last_digest_date": today,
+                "digest_retry_not_before": "",
+                "message": (
+                    f"Daily digest sent to {result['sent']} subscriber(s); "
+                    f"{result['skipped']} skipped; {result['failures']} failed."
+                ),
+            }
+        )
+    elif attempts < MAX_DAILY_DIGEST_ATTEMPTS:
+        update.update(
+            {
+                "digest_retry_not_before": (
+                    _now() + timedelta(seconds=DIGEST_RETRY_SECONDS)
+                ).isoformat(),
+                "message": (
+                    f"Daily digest found no sendable matches ({result['skipped']} skipped; "
+                    f"{result['failures']} failed). Retrying in 30 minutes."
+                ),
+            }
+        )
+    else:
+        update.update(
+            {
+                "last_digest_date": today,
+                "digest_retry_not_before": "",
+                "message": (
+                    "Daily digest stopped after three attempts because no qualifying "
+                    "90+ matches were available or delivery failed."
+                ),
+            }
+        )
+    state.update(update)
     _write_state(state)
+
+
+def _today_scoring_wait_reason(now: datetime) -> str:
+    from job_agent.storage import today_scoring_summary
+
+    scoring = today_scoring_summary(now.date().isoformat())
+    described = int(scoring.get("described") or 0)
+    gemini_scored = int(scoring.get("gemini_scored") or 0)
+    if described and gemini_scored < described:
+        return f"Gemini scoring ({gemini_scored}/{described} complete)"
+    return ""
 
 
 def _digest_scoring_wait_reason(state: dict[str, object], now: datetime) -> str:
     if _digest_latest_time_reached(now):
         return ""
+    today_wait = _today_scoring_wait_reason(now)
+    if today_wait:
+        return today_wait
     if state.get("description_capture_pending"):
         return "job descriptions to be captured"
     if str(state.get("gemini_not_before") or "").strip():
         return "Gemini scoring to start"
-
-    from job_agent.gemini_batch import batch_status
-
-    batch = batch_status(refresh=True)
-    if batch.get("active") or batch.get("submission_in_progress"):
-        return "Gemini scoring to finish"
     return ""
 
 
@@ -625,8 +759,16 @@ def _default_state() -> dict[str, object]:
         "batch_submissions": 0,
         "gemini_submission_failures": 0,
         "gemini_submission_state_version": GEMINI_SUBMISSION_STATE_VERSION,
+        "priority_gemini_date": "",
+        "priority_gemini_requests": 0,
+        "priority_gemini_scored": 0,
+        "priority_gemini_retry_not_before": "",
+        "priority_gemini_last_error": "",
         "last_digest_date": "",
         "last_digest_finished_at": "",
+        "digest_attempt_date": "",
+        "digest_attempts": 0,
+        "digest_retry_not_before": "",
         "worker_mode": "",
         "worker_heartbeat_at": "",
         "worker_last_error": "",

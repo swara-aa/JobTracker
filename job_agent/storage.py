@@ -8,13 +8,14 @@ from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from threading import Lock
 from typing import Iterable
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_agent.classification import (
     infer_role_family,
     location_filter_options,
     location_matches,
 )
-from job_agent.config import DB_PATH
+from job_agent.config import DB_PATH, DIGEST_TIMEZONE
 from job_agent.database import PostgresConnection, backend_name, postgres_connection
 from job_agent.models import JobPosting
 from job_agent.postgres_schema import schema_statements
@@ -58,6 +59,18 @@ def _ensure_database_uncached() -> None:
             )
             connection.execute(
                 "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS source_posted_at TEXT NOT NULL DEFAULT ''"
+            )
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_ready_status TEXT NOT NULL DEFAULT ''"
+            )
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_ready_reason TEXT NOT NULL DEFAULT ''"
+            )
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_ready_checked_at TEXT NOT NULL DEFAULT ''"
+            )
+            connection.execute(
+                "ALTER TABLE jobs ADD COLUMN IF NOT EXISTS apply_ready_url TEXT NOT NULL DEFAULT ''"
             )
             connection.execute(
                 "ALTER TABLE digest_subscribers ADD COLUMN IF NOT EXISTS plan TEXT NOT NULL DEFAULT 'free'"
@@ -122,6 +135,10 @@ def _ensure_database_uncached() -> None:
                 public_capture_metadata TEXT NOT NULL DEFAULT '{}',
                 public_capture_status TEXT NOT NULL DEFAULT '',
                 public_captured_at TEXT NOT NULL DEFAULT '',
+                apply_ready_status TEXT NOT NULL DEFAULT '',
+                apply_ready_reason TEXT NOT NULL DEFAULT '',
+                apply_ready_checked_at TEXT NOT NULL DEFAULT '',
+                apply_ready_url TEXT NOT NULL DEFAULT '',
                 collected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(source, link)
             )
@@ -177,6 +194,10 @@ def _ensure_database_uncached() -> None:
             "public_captured_at": "TEXT NOT NULL DEFAULT ''",
             "first_seen_at": "TEXT NOT NULL DEFAULT ''",
             "source_posted_at": "TEXT NOT NULL DEFAULT ''",
+            "apply_ready_status": "TEXT NOT NULL DEFAULT ''",
+            "apply_ready_reason": "TEXT NOT NULL DEFAULT ''",
+            "apply_ready_checked_at": "TEXT NOT NULL DEFAULT ''",
+            "apply_ready_url": "TEXT NOT NULL DEFAULT ''",
         }
         for column, definition in migrations.items():
             if column not in existing_columns:
@@ -509,11 +530,14 @@ def job_ids_without_gemini_match() -> list[int]:
     return [int(row[0]) for row in rows]
 
 
-def described_job_ids_without_gemini_match() -> list[int]:
+def described_job_ids_without_gemini_match(limit: int | None = None) -> list[int]:
     ensure_database()
+    safe_limit = max(1, int(limit)) if limit is not None else None
+    limit_clause = " LIMIT ?" if safe_limit is not None else ""
+    parameters = (safe_limit,) if safe_limit is not None else ()
     with _storage_connection() as connection:
         rows = connection.execute(
-            """
+            f"""
             SELECT jobs.id
             FROM jobs
             LEFT JOIN resume_job_matches AS matches
@@ -521,10 +545,67 @@ def described_job_ids_without_gemini_match() -> list[int]:
             WHERE matches.job_id IS NULL
               AND jobs.application_status != 'Closed'
               AND trim(jobs.description) != ''
-            ORDER BY jobs.posting_date DESC, jobs.id DESC
-            """
+            ORDER BY jobs.collected_at DESC, jobs.posting_date DESC, jobs.id DESC
+            {limit_clause}
+            """,
+            parameters,
         ).fetchall()
     return [int(row[0]) for row in rows]
+
+
+def recent_described_job_ids_without_gemini_match(
+    limit: int = 10,
+    within_hours: int = 36,
+    collected_since: datetime | None = None,
+) -> list[int]:
+    """Return the newest described jobs that still need a Gemini match."""
+    safe_limit = max(1, min(int(limit), 100))
+    safe_hours = max(1, min(int(within_hours), 168))
+    cutoff = collected_since or datetime.now(timezone.utc) - timedelta(hours=safe_hours)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    cutoff = cutoff.astimezone(timezone.utc)
+    ensure_database()
+    with _storage_connection() as connection:
+        rows = connection.execute(
+            """
+            SELECT jobs.id, jobs.collected_at
+            FROM jobs
+            LEFT JOIN resume_job_matches AS matches
+              ON matches.job_id = jobs.id AND matches.is_best = 1
+            WHERE matches.job_id IS NULL
+              AND jobs.application_status != 'Closed'
+              AND trim(jobs.description) != ''
+              AND substr(jobs.collected_at, 1, 10) >= ?
+            ORDER BY COALESCE(jobs.local_match_score, -1) DESC,
+                     jobs.collected_at DESC, jobs.id DESC
+            LIMIT 200
+            """,
+            (cutoff.date().isoformat(),),
+        ).fetchall()
+
+    recent_ids: list[int] = []
+    for row in rows:
+        collected_at = _parse_stored_datetime(str(row[1] or ""))
+        if collected_at is None:
+            continue
+        recent_ids.append(int(row[0]))
+        if len(recent_ids) >= safe_limit:
+            break
+    return recent_ids
+
+
+def _parse_stored_datetime(value: str) -> datetime | None:
+    normalized = value.strip().replace("Z", "+00:00")
+    if not normalized:
+        return None
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def described_job_ids_without_local_score(limit: int = 200) -> list[int]:
@@ -627,6 +708,7 @@ def fetch_jobs(
                local_match_score, local_match_resume_id, local_match_evidence,
                local_match_missing, local_match_hard_no, local_match_hard_no_reasons,
                local_match_analyzed_at, first_seen_at, source_posted_at,
+               apply_ready_status, apply_ready_reason, apply_ready_checked_at, apply_ready_url,
                matches.score AS resume_match_score,
                matches.rationale AS resume_match_rationale,
                matches.matched_skills AS resume_match_matched_skills,
@@ -666,6 +748,31 @@ def fetch_jobs(
     if location:
         jobs = [job for job in jobs if location_matches(str(job.get("location") or ""), location)]
     return jobs
+
+
+def save_apply_readiness_results(results: Iterable[dict[str, object]]) -> None:
+    normalized = [result for result in results if int(result.get("job_id") or 0) > 0]
+    if not normalized:
+        return
+    ensure_database()
+    with _storage_connection() as connection:
+        for result in normalized:
+            connection.execute(
+                """
+                UPDATE jobs
+                SET apply_ready_status = ?, apply_ready_reason = ?,
+                    apply_ready_checked_at = ?, apply_ready_url = ?
+                WHERE id = ?
+                """,
+                (
+                    str(result.get("status") or "")[:40],
+                    str(result.get("reason") or "")[:500],
+                    str(result.get("checked_at") or ""),
+                    str(result.get("final_url") or "")[:2000],
+                    int(result["job_id"]),
+                ),
+            )
+        connection.commit()
 
 
 def _storage_connection() -> sqlite3.Connection | PostgresConnection:
@@ -807,7 +914,11 @@ def analytics_summary(days: int = 30) -> dict[str, object]:
 
 def today_scoring_summary(today: str | None = None) -> dict[str, int]:
     """Return production-safe counts for jobs collected and scored today."""
-    target_date = today or datetime.now(timezone.utc).date().isoformat()
+    try:
+        local_today = datetime.now(ZoneInfo(DIGEST_TIMEZONE)).date().isoformat()
+    except ZoneInfoNotFoundError:
+        local_today = datetime.now(timezone.utc).date().isoformat()
+    target_date = today or local_today
     ensure_database()
     with _storage_connection() as connection:
         if isinstance(connection, sqlite3.Connection):

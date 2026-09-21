@@ -250,6 +250,14 @@ newly saved board job keeps its API-provided description and gets a local score.
 is deferred up to 15 minutes so the public-board and LinkedIn morning collections can be combined
 into one batch. You can also run the same workflow from **Operations → Collect Public Boards Now**.
 
+Before a subscriber digest is sent, JobTracker limits candidates to recent postings and rechecks
+their application pages. Greenhouse and Lever jobs are verified through their public APIs; other
+sources must return a matching job page with an active application control and no closure or expiry
+signal. Unreachable or ambiguous pages are omitted, and the email sends fewer jobs rather than
+substituting an unverified link. `JOBTRACKER_DIGEST_MAX_JOB_AGE_DAYS`,
+`JOBTRACKER_DIGEST_APPLY_CHECK_LIMIT`, and `JOBTRACKER_DIGEST_APPLY_CHECK_TIMEOUT_SECONDS` tune
+that validation without weakening the default score threshold.
+
 ## Company Intelligence
 
 `config/companies.csv` is a small, manually maintained company database. It powers the **Fortune 500 only** browse filter and adds modest local-ranking signals for companies marked as visa-friendly, entry-level hiring, or relevant to software/AI-ML roles. It never rejects an unknown company or overrides job-specific hard-no language.
