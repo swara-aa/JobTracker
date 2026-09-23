@@ -589,6 +589,8 @@ def recent_described_job_ids_without_gemini_match(
         collected_at = _parse_stored_datetime(str(row[1] or ""))
         if collected_at is None:
             continue
+        if collected_at < cutoff:
+            continue
         recent_ids.append(int(row[0]))
         if len(recent_ids) >= safe_limit:
             break

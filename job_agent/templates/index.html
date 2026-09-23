@@ -6,14 +6,15 @@
     <title>Browse Jobs · Job Tracker</title>
     <style>
       :root {
-        --bg: #f3efe8;
-        --paper: #fffaf2;
-        --ink: #1f2933;
-        --muted: #5b6875;
-        --accent: #aa3a2a;
-        --accent-soft: #f5d9cb;
-        --line: #dfd5c7;
-        --shadow: rgba(31, 41, 51, 0.08);
+        --bg: #11100d;
+        --paper: #1a1814;
+        --ink: #f7f0e3;
+        --muted: #b8ad9b;
+        --accent: #8f3230;
+        --accent-soft: #28241d;
+        --gold: #d6b778;
+        --line: #3a3328;
+        --shadow: rgba(0, 0, 0, 0.28);
       }
 
       * {
@@ -22,11 +23,9 @@
 
       body {
         margin: 0;
-        font-family: Georgia, "Times New Roman", serif;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         color: var(--ink);
-        background:
-          radial-gradient(circle at top left, #fffdf8 0%, transparent 35%),
-          linear-gradient(180deg, #efe7da 0%, var(--bg) 100%);
+        background: linear-gradient(180deg, #171510 0%, var(--bg) 100%);
       }
 
       .page {
@@ -38,12 +37,13 @@
       .hero {
         background: var(--paper);
         border: 1px solid var(--line);
-        border-radius: 20px;
+        border-radius: 8px;
         padding: 28px;
         box-shadow: 0 16px 40px var(--shadow);
       }
 
       h1 {
+        font-family: Georgia, "Times New Roman", serif;
         margin: 0 0 8px;
         font-size: clamp(2rem, 4vw, 3.4rem);
         line-height: 1;
@@ -78,8 +78,8 @@
         width: 100%;
         padding: 12px 14px;
         border: 1px solid var(--line);
-        border-radius: 12px;
-        background: #fff;
+        border-radius: 8px;
+        background: #211e18;
         color: var(--ink);
         font: inherit;
       }
@@ -111,7 +111,7 @@
       button,
       .link-button {
         border: 0;
-        border-radius: 999px;
+        border-radius: 8px;
         padding: 12px 18px;
         cursor: pointer;
         font: inherit;
@@ -124,15 +124,16 @@
       }
 
       .link-button {
+        border: 1px solid var(--line);
         background: var(--accent-soft);
-        color: var(--accent);
+        color: var(--ink);
       }
 
       .table-card {
         margin-top: 22px;
         background: var(--paper);
         border: 1px solid var(--line);
-        border-radius: 20px;
+        border-radius: 8px;
         box-shadow: 0 16px 40px var(--shadow);
         overflow: hidden;
       }
@@ -141,15 +142,15 @@
         margin-top: 22px;
         padding: 24px;
         border: 1px solid var(--line);
-        border-radius: 20px;
-        background: #fff7eb;
+        border-radius: 8px;
+        background: var(--paper);
         box-shadow: 0 16px 40px var(--shadow);
       }
 
       .priority-queue h2 { margin: 0 0 6px; }
       .queue-subtitle { margin: 0 0 18px; color: var(--muted); }
       .queue-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-      .queue-item { padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--paper); }
+      .queue-item { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
       .queue-item h3 { margin: 0 0 6px; font-size: 1.05rem; }
       .queue-item p { margin: 4px 0; color: var(--muted); }
       .queue-score { color: var(--accent); font-weight: bold; }
@@ -172,14 +173,14 @@
       }
 
       th {
-        background: #f8f1e7;
+        background: #211e18;
         font-size: 0.9rem;
-        color: var(--muted);
+        color: var(--gold);
         letter-spacing: 0.02em;
       }
 
       td a {
-        color: var(--accent);
+        color: var(--gold);
       }
 
       .job-details {
@@ -212,9 +213,19 @@
       .notice {
         margin-top: 18px;
         padding: 14px 16px;
-        border-radius: 14px;
-        background: #d8efe4;
-        color: #1f6b52;
+        border-radius: 8px;
+        background: #213823;
+        color: #b7e2b9;
+        border: 1px solid #416747;
+      }
+
+      .warning {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 8px;
+        background: #3a2b17;
+        color: #f0d698;
+        border: 1px solid #70552b;
       }
 
       .visa-note {
@@ -231,18 +242,20 @@
         <div class="topbar">
           <div>
             <h1>Browse Jobs</h1>
-            <p class="subtitle">Search your complete job radar when you want to explore beyond today’s decisions.</p>
+            <p class="subtitle">Explore the full radar when you want more control than the daily dashboard.</p>
           </div>
           <div class="actions">
-            <a class="link-button" href="/">Inbox</a>
+            <a class="link-button" href="/">Dashboard</a>
             <a class="link-button" href="/analytics">Analytics</a>
-            <a class="link-button" href="/resumes">Resume Library</a>
-            <a class="link-button" href="/linkedin-review">Import Jobs</a>
-            <a class="link-button" href="/operations">Operations</a>
+            <a class="link-button" href="/resumes">Resume</a>
+            <a class="link-button" href="/linkedin-review">Collect Jobs</a>
+            <a class="link-button" href="/digest-signup">Daily Email</a>
+            <a class="link-button" href="/operations">Settings</a>
           </div>
         </div>
 
         <form method="get">
+          {% if filters.view %}<input type="hidden" name="view" value="{{ filters.view }}">{% endif %}
           <div class="filters">
             <div class="field">
               <label for="role">Role</label>
@@ -327,11 +340,10 @@
           <div class="actions">
             <button type="submit">Apply Filters</button>
             <a class="link-button" href="/jobs">Reset</a>
-            {% if showing_closed %}
-            <a class="link-button" href="/jobs">Active Job Radar</a>
-            {% elif showing_verification %}
+            {% if showing_closed or showing_verification or showing_pending %}
             <a class="link-button" href="/jobs">Active Job Radar</a>
             {% else %}
+            <a class="link-button" href="/jobs?view=pending&amp;posted_within=24h">Pending Gemini ({{ pending_gemini_count }})</a>
             <a class="link-button" href="/jobs?view=closed">No Longer Accepting Applications ({{ closed_job_count }})</a>
             <a class="link-button" href="/jobs?view=verification">Needs Verification ({{ verification_job_count }})</a>
             {% endif %}
@@ -359,11 +371,16 @@
         {% if radar_message %}
         <div class="notice">{{ radar_message }}</div>
         {% endif %}
+        {% if not showing_pending and pending_recent_count %}
+        <div class="warning">{{ pending_recent_count }} recent job{{ 's are' if pending_recent_count != 1 else ' is' }} waiting for Gemini and intentionally hidden from the active radar. <a href="/jobs?view=pending&amp;posted_within=24h">Open the pending queue</a>.</div>
+        {% elif showing_pending %}
+        <div class="warning">These jobs are collected and locally pre-scored but are not eligible for the active radar or subscriber email until Gemini scoring finishes.</div>
+        {% endif %}
         <p class="visa-note">Visa assessments distinguish explicit posting language from FY2025 employer H-1B filing history. Historical filings do not guarantee sponsorship for a particular opening; “Unclear” is not the same as “No.”</p>
       </section>
 
       <section class="table-card">
-        <div class="count">Showing {{ jobs|length }} of {{ jobs_in_view }} {% if showing_closed %}closed{% elif showing_verification %}needs-verification{% else %}active{% endif %} jobs · {{ posted_label }} · {{ total_jobs }} total saved</div>
+        <div class="count">Showing {{ jobs|length }} of {{ jobs_in_view }} {% if showing_pending %}pending-Gemini{% elif showing_closed %}closed{% elif showing_verification %}needs-verification{% else %}active{% endif %} jobs · {{ posted_label }} · {{ total_jobs }} total saved</div>
         {% if jobs %}
         <div class="table-wrap">
           <table>

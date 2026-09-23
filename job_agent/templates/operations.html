@@ -21,6 +21,14 @@
         <div><a href="/">Job Radar</a><a href="/resumes">Resume Library</a><a href="/linkedin-review">LinkedIn Import</a></div>
       </section>
       {% if message %}<div class="notice">{{ message }}</div>{% endif %}
+      <section class="panel"><h2>Production Readiness</h2>
+        {% if production_readiness.ready %}<div class="notice"><strong>Ready</strong> — all critical production checks are passing.</div>{% else %}<div class="warning"><strong>Not ready</strong> — {{ production_readiness.blocking_count }} critical check{{ 's are' if production_readiness.blocking_count != 1 else ' is' }} failing.</div>{% endif %}
+        <div class="grid">
+          {% for check in production_readiness.checks %}
+          <article class="card"><strong>{{ 'PASS' if check.passed else ('BLOCKED' if check.critical else 'WARNING') }} · {{ check.label }}</strong><p>{{ check.detail }}</p></article>
+          {% endfor %}
+        </div>
+      </section>
       <section class="panel"><h2>Automatic Pipeline</h2>
         <div class="notice"><strong>{{ automation_status.phase|replace('_', ' ')|title }}</strong><br>{{ automation_status.message }}</div>
         <div class="grid">

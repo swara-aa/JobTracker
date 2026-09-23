@@ -336,6 +336,56 @@ class StorageClassificationTests(unittest.TestCase):
 
         self.assertEqual(job_ids, [saved_ids[1]])
 
+    def test_recent_gemini_queue_respects_exact_cutoff_time(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                saved_ids = save_jobs_with_ids(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Too Early Today",
+                            company="Example",
+                            location="Remote",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/too-early-today",
+                            description="Build services.",
+                        ),
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Fresh Enough Today",
+                            company="Example Two",
+                            location="Remote",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/fresh-enough-today",
+                            description="Build APIs.",
+                        ),
+                    ]
+                )
+                cutoff = datetime(2026, 9, 23, 8, 0, tzinfo=timezone.utc)
+                with sqlite3.connect(database_path) as connection:
+                    connection.execute(
+                        "UPDATE jobs SET collected_at = ? WHERE id = ?",
+                        ("2026-09-23T07:59:59+00:00", saved_ids[0]),
+                    )
+                    connection.execute(
+                        "UPDATE jobs SET collected_at = ? WHERE id = ?",
+                        ("2026-09-23T08:00:00+00:00", saved_ids[1]),
+                    )
+                    connection.commit()
+
+                job_ids = recent_described_job_ids_without_gemini_match(
+                    limit=10,
+                    collected_since=cutoff,
+                )
+
+        self.assertEqual(job_ids, [saved_ids[1]])
+
     def test_recent_gemini_queue_is_not_crowded_out_by_old_jobs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"

@@ -81,6 +81,12 @@ DIGEST_APPLY_CHECK_TIMEOUT_SECONDS = max(
     3,
     min(30, int(os.getenv("JOBTRACKER_DIGEST_APPLY_CHECK_TIMEOUT_SECONDS", "10"))),
 )
+DIGEST_REQUIRE_GEMINI = os.getenv("JOBTRACKER_DIGEST_REQUIRE_GEMINI", "true").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
 GEMINI_BATCH_SIZE = max(
     1,
     min(500, int(os.getenv("JOBTRACKER_GEMINI_BATCH_SIZE", "100"))),

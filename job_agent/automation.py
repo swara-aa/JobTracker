@@ -28,6 +28,7 @@ PUBLIC_CAPTURE_DELAY_SECONDS = 10 * 60
 PUBLIC_GEMINI_DELAY_SECONDS = 15 * 60
 RETRY_GEMINI_DELAY_SECONDS = 2 * 60
 PRIORITY_GEMINI_RETRY_SECONDS = 15 * 60
+GEMINI_BLOCKING_RETRY_SECONDS = 6 * 60 * 60
 PRIORITY_GEMINI_PER_TICK = 10
 DIGEST_RETRY_SECONDS = 30 * 60
 MAX_DAILY_DIGEST_ATTEMPTS = 3
@@ -426,12 +427,13 @@ def _maybe_score_recent_jobs_with_gemini() -> None:
     )
     state["priority_gemini_last_error"] = last_error
     if last_error:
+        retry_seconds, retry_label = _gemini_retry_policy(last_error)
         state["priority_gemini_retry_not_before"] = (
-            _now() + timedelta(seconds=PRIORITY_GEMINI_RETRY_SECONDS)
+            _now() + timedelta(seconds=retry_seconds)
         ).isoformat()
         state["message"] = (
             f"Gemini scored {completed} recent job(s), then paused: {last_error}. "
-            "Retrying in 15 minutes."
+            f"Retrying {retry_label}."
         )
     else:
         state["priority_gemini_retry_not_before"] = ""
@@ -545,14 +547,19 @@ def _maybe_submit_gemini_batch() -> None:
     try:
         batch = submit_gemini_resume_batch(job_ids)
     except Exception as exc:
+        retry_seconds, retry_label = _gemini_retry_policy(exc)
         state = _read_state()
         state.update(
             {
                 "gemini_submission_failures": failures + 1,
                 "gemini_not_before": (
-                    _now() + timedelta(minutes=15)
+                    _now() + timedelta(seconds=retry_seconds)
                 ).isoformat(),
-                "message": _gemini_submission_failure_message(exc, failures + 1),
+                "message": _gemini_submission_failure_message(
+                    exc,
+                    failures + 1,
+                    retry_label=retry_label,
+                ),
             }
         )
         _write_state(state)
@@ -667,12 +674,36 @@ def _digest_scoring_wait_reason(state: dict[str, object], now: datetime) -> str:
     return ""
 
 
-def _gemini_submission_failure_message(error: Exception, failures: int) -> str:
+def _gemini_submission_failure_message(
+    error: Exception,
+    failures: int,
+    *,
+    retry_label: str = "in 15 minutes",
+) -> str:
     detail = str(error).replace("\n", " ")[:180]
     guidance = ""
     if "FAILED_PRECONDITION" in detail.upper():
         guidance = " Check Gemini billing and that the API is available from this server region."
-    return f"Gemini submission attempt {failures}/{MAX_DAILY_BATCH_FAILURES} failed: {detail}.{guidance} Retrying in 15 minutes."
+    if _gemini_retry_policy(error)[0] == GEMINI_BLOCKING_RETRY_SECONDS:
+        guidance = " Check the Gemini API key, billing, and prepaid credits."
+    return f"Gemini submission attempt {failures}/{MAX_DAILY_BATCH_FAILURES} failed: {detail}.{guidance} Retrying {retry_label}."
+
+
+def _gemini_retry_policy(error: Exception | str) -> tuple[int, str]:
+    detail = str(error).upper()
+    if any(
+        marker in detail
+        for marker in (
+            "402",
+            "PAYMENT REQUIRED",
+            "PREPAYMENT CREDITS",
+            "CREDITS ARE DEPLETED",
+            "API KEY NOT VALID",
+            "UNAUTHENTICATED",
+        )
+    ):
+        return GEMINI_BLOCKING_RETRY_SECONDS, "in 6 hours after billing or credentials are fixed"
+    return PRIORITY_GEMINI_RETRY_SECONDS, "in 15 minutes"
 
 
 def _automation_time() -> tuple[int, int]:

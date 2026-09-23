@@ -81,13 +81,15 @@ APPLICATION_STATUSES = [
 
 
 def _posted_at(job: dict[str, object]) -> datetime | None:
-    try:
-        posted_at = datetime.fromisoformat(str(job["posting_date"]).replace("Z", "+00:00"))
-        if posted_at.tzinfo is None:
-            posted_at = posted_at.replace(tzinfo=timezone.utc)
-    except (KeyError, TypeError, ValueError):
-        return None
-    return posted_at.astimezone(timezone.utc)
+    for field in ("source_posted_at", "posting_date", "first_seen_at"):
+        try:
+            posted_at = datetime.fromisoformat(str(job.get(field) or "").replace("Z", "+00:00"))
+            if posted_at.tzinfo is None:
+                posted_at = posted_at.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError):
+            continue
+        return posted_at.astimezone(timezone.utc)
+    return None
 
 
 def _is_priority_job(job: dict[str, object]) -> bool:
@@ -179,13 +181,10 @@ def _was_posted_within(job: dict[str, object], posted_within: str) -> bool:
     option = POSTED_WITHIN_OPTIONS.get(posted_within)
     if option is None:
         return True
-    try:
-        posted_at = datetime.fromisoformat(str(job["posting_date"]).replace("Z", "+00:00"))
-        if posted_at.tzinfo is None:
-            posted_at = posted_at.replace(tzinfo=timezone.utc)
-    except (KeyError, TypeError, ValueError):
+    posted_at = _posted_at(job)
+    if posted_at is None:
         return False
-    return datetime.now(timezone.utc) - posted_at.astimezone(timezone.utc) <= option[1]
+    return datetime.now(timezone.utc) - posted_at <= option[1]
 
 
 def _filter_dashboard_jobs(
@@ -211,6 +210,14 @@ def _matches_company_tier(job: dict[str, object], company_tier: str) -> bool:
     if company_tier != "fortune500":
         return True
     return get_company_attributes(str(job.get("company") or "")).get("fortune_500") is True
+
+
+def _is_pending_gemini(job: dict[str, object]) -> bool:
+    return (
+        job.get("resume_match_score") is None
+        and job.get("local_match_score") is not None
+        and str(job.get("application_status") or "") != "Closed"
+    )
 
 
 def _access_control_enabled() -> bool:
@@ -263,6 +270,21 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"] = get_user_setting("FLASK_SECRET_KEY") or secrets.token_urlsafe(48)
     app.config["MAX_CONTENT_LENGTH"] = 20 * 1024 * 1024
     app.config["AUTH_REQUIRED"] = _access_control_enabled()
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["SESSION_COOKIE_SECURE"] = bool(os.getenv("WEBSITE_HOSTNAME"))
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        if os.getenv("WEBSITE_HOSTNAME"):
+            response.headers.setdefault(
+                "Strict-Transport-Security",
+                "max-age=31536000; includeSubDomains",
+            )
+        return response
 
     @app.before_request
     def require_private_access():
@@ -401,8 +423,9 @@ def create_app() -> Flask:
 
     @app.route("/")
     def index():
-        all_jobs = fetch_jobs(gemini_scored_only=True)
-        verification_reasons = verification_reasons_by_job(all_jobs)
+        saved_jobs = fetch_jobs()
+        all_jobs = [job for job in saved_jobs if job.get("resume_match_score") is not None]
+        verification_reasons = verification_reasons_by_job(saved_jobs)
         active_jobs = [
             job
             for job in all_jobs
@@ -410,6 +433,12 @@ def create_app() -> Flask:
             and int(job["id"]) not in verification_reasons
         ]
         inbox_jobs = _build_priority_queue(active_jobs)
+        pending_recent_count = sum(
+            _is_pending_gemini(job)
+            and _was_posted_within(job, "24h")
+            and int(job["id"]) not in verification_reasons
+            for job in saved_jobs
+        )
         captured = request.args.get("captured", "").strip()
         accepted = request.args.get("accepted", "").strip()
         saved = request.args.get("saved", "").strip()
@@ -424,7 +453,9 @@ def create_app() -> Flask:
             "inbox.html",
             inbox_jobs=inbox_jobs,
             inbox_count=len(inbox_jobs),
-            total_jobs=len(all_jobs),
+            total_jobs=len(saved_jobs),
+            pending_gemini_count=sum(_is_pending_gemini(job) for job in saved_jobs),
+            pending_recent_count=pending_recent_count,
             verification_job_count=sum(
                 job.get("application_status") != "Closed"
                 for job in all_jobs
@@ -461,6 +492,7 @@ def create_app() -> Flask:
         view = request.args.get("view", "").strip()
         showing_closed = view == "closed"
         showing_verification = view == "verification"
+        showing_pending = view == "pending"
         posted_within = request.args.get("posted_within", "").strip()
         minimum_score = _score_bound(request.args.get("minimum_score", ""))
         maximum_score = _score_bound(request.args.get("maximum_score", ""))
@@ -501,13 +533,24 @@ def create_app() -> Flask:
             for job in all_jobs
             if int(job["id"]) in verification_reasons
         )
+        pending_gemini_count = sum(
+            _is_pending_gemini(job)
+            and int(job["id"]) not in verification_reasons
+            for job in all_jobs
+        )
+        pending_recent_count = sum(
+            _is_pending_gemini(job)
+            and _was_posted_within(job, "24h")
+            and int(job["id"]) not in verification_reasons
+            for job in all_jobs
+        )
         matching_jobs = fetch_jobs(
             role=role,
             location=location,
             company=company,
             visa=visa,
             application_status=application_status,
-            gemini_scored_only=True,
+            gemini_scored_only=not showing_pending,
         )
         matching_jobs = _filter_dashboard_jobs(
             matching_jobs, posted_within, minimum_score, maximum_score
@@ -515,7 +558,14 @@ def create_app() -> Flask:
         matching_jobs = [
             job for job in matching_jobs if _matches_company_tier(job, company_tier)
         ]
-        if showing_closed:
+        if showing_pending:
+            matching_jobs = [
+                job
+                for job in matching_jobs
+                if _is_pending_gemini(job)
+                and int(job["id"]) not in verification_reasons
+            ]
+        elif showing_closed:
             matching_jobs = [job for job in matching_jobs if job.get("application_status") == "Closed"]
         elif showing_verification:
             matching_jobs = [
@@ -554,8 +604,11 @@ def create_app() -> Flask:
             posted_label=posted_label,
             showing_closed=showing_closed,
             showing_verification=showing_verification,
+            showing_pending=showing_pending,
             closed_job_count=closed_job_count,
             verification_job_count=verification_job_count,
+            pending_gemini_count=pending_gemini_count,
+            pending_recent_count=pending_recent_count,
             total_jobs=job_count(),
             roles=distinct_values("role_query"),
             locations=distinct_values("location"),
@@ -692,6 +745,7 @@ def create_app() -> Flask:
         from job_agent.automation import automation_status
         from job_agent.gemini_batch import batch_status
         from job_agent.gemini_queue import gemini_queue_status
+        from job_agent.production_readiness import production_readiness_status
         from job_agent.public_enrichment import overnight_public_backfill_status
         from job_agent.storage import job_ids_without_gemini_match, public_description_missing_count
 
@@ -725,6 +779,7 @@ def create_app() -> Flask:
             greenhouse_boards=configured_boards(GREENHOUSE_BOARDS),
             lever_sites=configured_boards(LEVER_SITES),
             workday_sites=configured_workday_sites(WORKDAY_SITES),
+            production_readiness=production_readiness_status(),
             message=request.args.get("message", "").strip(),
         )
 
@@ -732,6 +787,7 @@ def create_app() -> Flask:
     def operations_status():
         from job_agent.automation import automation_status
         from job_agent.gemini_batch import batch_status
+        from job_agent.production_readiness import production_readiness_status
 
         try:
             local_now = datetime.now(ZoneInfo(DIGEST_TIMEZONE))
@@ -763,6 +819,7 @@ def create_app() -> Flask:
                     ),
                 },
                 "timezone": DIGEST_TIMEZONE,
+                "production_readiness": production_readiness_status(),
             }
         )
 
@@ -803,7 +860,7 @@ def create_app() -> Flask:
         from job_agent.digest import send_daily_job_digests
 
         try:
-            result = send_daily_job_digests(use_gemini=False)
+            result = send_daily_job_digests(use_gemini=True)
             message = (
                 f"Daily digest sent to {result['sent']} subscriber(s); "
                 f"{result['skipped']} skipped; {result['failures']} failed."

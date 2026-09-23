@@ -327,6 +327,10 @@ def top_digest_matches(
         match
         for match in ranked
         if not match.get("hard_no") and int(match.get("score") or 0) >= config.DIGEST_MIN_SCORE
+        and (
+            not config.DIGEST_REQUIRE_GEMINI
+            or str(match.get("score_source") or "").lower() == "gemini"
+        )
     ]
     return qualified[:limit]
 

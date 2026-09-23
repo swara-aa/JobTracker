@@ -60,6 +60,7 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.digest.DB_PATH", database_path),
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", False),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 0),
                 patch(
                     "job_agent.digest._verified_apply_ready_matches",
@@ -213,6 +214,7 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.digest.DB_PATH", database_path),
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", False),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
                 patch(
                     "job_agent.digest._verified_apply_ready_matches",
@@ -267,6 +269,7 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.digest.DB_PATH", database_path),
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value="fake-key"),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", True),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
                 patch(
                     "job_agent.digest._verified_apply_ready_matches",
@@ -328,6 +331,7 @@ class DigestTests(unittest.TestCase):
                 patch("job_agent.digest.DB_PATH", database_path),
                 patch("job_agent.database.DB_PATH", database_path),
                 patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", True),
                 patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
                 patch(
                     "job_agent.digest._verified_apply_ready_matches",
@@ -394,6 +398,48 @@ class DigestTests(unittest.TestCase):
         self.assertIn("Fortune 500", matches[0]["priority_signals"])
         self.assertIn("visa-friendly signal", matches[0]["priority_signals"])
         self.assertIn("software hiring signal", matches[0]["priority_signals"])
+
+    def test_digest_can_require_gemini_scored_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+                patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", True),
+                patch("job_agent.digest.config.DIGEST_MIN_SCORE", 0),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
+            ):
+                subscriber = subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Marketing & Communications"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=RESUME_TEXT,
+                )
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Marketing & Communications",
+                            title="Marketing Coordinator",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=datetime.now(timezone.utc),
+                            link="https://example.test/local-only",
+                            description="Create content strategy, campaign analytics, and social media reporting.",
+                        ),
+                    ]
+                )
+                subscriber_record = active_digest_subscribers()[0] | subscriber
+                matches = top_digest_matches(subscriber_record)
+
+        self.assertEqual(matches, [])
 
 
 if __name__ == "__main__":

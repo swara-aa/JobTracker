@@ -13,12 +13,21 @@ from job_agent.automation import (
     _maybe_send_daily_digests,
     _maybe_submit_gemini_batch,
     _gemini_submission_failure_message,
+    _gemini_retry_policy,
     _reset_daily_batch_counter,
     request_public_collection_now,
 )
 
 
 class GeminiAutomationTests(unittest.TestCase):
+    def test_depleted_credits_use_long_backoff(self) -> None:
+        seconds, label = _gemini_retry_policy(
+            RuntimeError("402 Payment Required: prepayment credits are depleted")
+        )
+
+        self.assertEqual(seconds, 6 * 60 * 60)
+        self.assertIn("billing", label)
+
     def test_failed_precondition_includes_actionable_guidance(self) -> None:
         message = _gemini_submission_failure_message(
             RuntimeError("400 FAILED_PRECONDITION"),

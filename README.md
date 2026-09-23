@@ -24,6 +24,7 @@ JobTracker combines public-job collection, resume-aware triage, visa-language re
 - Visa results are job-posting analysis, not legal advice. Employer history does not guarantee sponsorship.
 
 See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) before deploying or sharing the project.
+Current functional requirements, nonfunctional requirements, and acceptance tests are tracked in [docs/REQUIREMENTS_AND_TEST_CASES.md](docs/REQUIREMENTS_AND_TEST_CASES.md).
 
 ## Requirements
 
@@ -206,6 +207,8 @@ export JOB_AGENT_WORKDAY_SITES="company.wd5.myworkdayjobs.com:tenant:External:Co
 export JOB_AGENT_SMTP_HOST="smtp.example.com"
 export JOB_AGENT_SMTP_TO="you@example.com"
 ```
+
+Set `JOBTRACKER_DIGEST_REQUIRE_GEMINI=true` in production so subscriber recommendation emails only include jobs with Gemini match scores. When Gemini credits or credentials are unavailable, the digest sends the no-match email instead of sending local-only recommendations.
 
 On Windows, use `$env:NAME="value"` for the current PowerShell session.
 
