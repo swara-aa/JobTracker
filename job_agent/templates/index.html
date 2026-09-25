@@ -7,13 +7,15 @@
     <style>
       :root {
         --bg: #11100d;
-        --paper: #1a1814;
-        --ink: #f7f0e3;
-        --muted: #b8ad9b;
+        --paper: #1d1a15;
+        --paper-2: #242017;
+        --ink: #f4eadb;
+        --muted: #c5b8a3;
         --accent: #8f3230;
+        --accent-hover: #a23f39;
         --accent-soft: #28241d;
-        --gold: #d6b778;
-        --line: #3a3328;
+        --gold: #c7a869;
+        --line: #463b2d;
         --shadow: rgba(0, 0, 0, 0.28);
       }
 
@@ -79,7 +81,7 @@
         padding: 12px 14px;
         border: 1px solid var(--line);
         border-radius: 8px;
-        background: #211e18;
+        background: #2a251c;
         color: var(--ink);
         font: inherit;
       }
@@ -98,6 +100,7 @@
         display: flex;
         gap: 12px;
         flex-wrap: wrap;
+        align-items: center;
       }
 
       .topbar {
@@ -110,23 +113,38 @@
 
       button,
       .link-button {
-        border: 0;
+        border: 1px solid var(--line);
         border-radius: 8px;
         padding: 12px 18px;
+        min-height: 42px;
         cursor: pointer;
         font: inherit;
         text-decoration: none;
+        line-height: 1.15;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
       button {
         background: var(--accent);
         color: #fff;
+        border-color: #a9443c;
+      }
+
+      button:hover {
+        background: var(--accent-hover);
       }
 
       .link-button {
-        border: 1px solid var(--line);
         background: var(--accent-soft);
         color: var(--ink);
+      }
+
+      .link-button:hover {
+        background: #352e23;
+        border-color: #66543e;
       }
 
       .table-card {
@@ -153,7 +171,7 @@
       .queue-item { padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); }
       .queue-item h3 { margin: 0 0 6px; font-size: 1.05rem; }
       .queue-item p { margin: 4px 0; color: var(--muted); }
-      .queue-score { color: var(--accent); font-weight: bold; }
+      .queue-score { color: var(--gold); font-weight: bold; }
 
       .table-wrap {
         overflow-x: auto;
@@ -173,7 +191,7 @@
       }
 
       th {
-        background: #211e18;
+        background: var(--paper-2);
         font-size: 0.9rem;
         color: var(--gold);
         letter-spacing: 0.02em;
@@ -214,9 +232,9 @@
         margin-top: 18px;
         padding: 14px 16px;
         border-radius: 8px;
-        background: #213823;
-        color: #b7e2b9;
-        border: 1px solid #416747;
+        background: #24351f;
+        color: #9ec89d;
+        border: 1px solid #4b6545;
       }
 
       .warning {
@@ -224,7 +242,7 @@
         padding: 14px 16px;
         border-radius: 8px;
         background: #3a2b17;
-        color: #f0d698;
+        color: #e8d19b;
         border: 1px solid #70552b;
       }
 
@@ -233,6 +251,13 @@
         color: var(--muted);
         font-size: 0.9rem;
         line-height: 1.45;
+      }
+
+      @media (max-width: 760px) {
+        .link-button,
+        button {
+          white-space: normal;
+        }
       }
     </style>
   </head>

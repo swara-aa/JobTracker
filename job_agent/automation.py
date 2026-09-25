@@ -403,6 +403,7 @@ def _maybe_score_recent_jobs_with_gemini() -> None:
     )
     if not job_ids:
         state["priority_gemini_retry_not_before"] = ""
+        state["priority_gemini_last_error"] = ""
         _write_state(state)
         return
 
@@ -470,6 +471,10 @@ def _maybe_refresh_gemini_batch() -> None:
         state["gemini_not_before"] = (
             now + timedelta(seconds=RETRY_GEMINI_DELAY_SECONDS)
         ).isoformat()
+    elif not refreshed.get("active") and int(refreshed.get("completed") or 0):
+        state["gemini_submission_failures"] = 0
+        state["priority_gemini_last_error"] = ""
+        state["priority_gemini_retry_not_before"] = ""
     _write_state(state)
 
 
