@@ -881,6 +881,9 @@ def analytics_summary(days: int = 30) -> dict[str, object]:
             """,
             (start_value,),
         ).fetchall()
+        locations = breakdown("location")
+        sources = breakdown("source")
+        role_queries = breakdown("role_query")
 
     score_distribution = {"90–100": 0, "75–89": 0, "60–74": 0, "Below 60": 0, "Not scored": 0}
     for row in score_rows:
@@ -902,9 +905,9 @@ def analytics_summary(days: int = 30) -> dict[str, object]:
         "overview": {key: int(value or 0) for key, value in overview.items()},
         "daily_trend": daily_trend,
         "daily_max": max((item["jobs"] for item in daily_trend), default=1) or 1,
-        "locations": breakdown("location"),
-        "sources": breakdown("source"),
-        "role_queries": breakdown("role_query"),
+        "locations": locations,
+        "sources": sources,
+        "role_queries": role_queries,
         "pipeline": [
             {"label": str(row["label"]), "jobs": int(row["jobs"])} for row in pipeline_rows
         ],

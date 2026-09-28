@@ -85,6 +85,7 @@
           <h2>{{ title }}</h2>
           <div class="bar-list">
             {% set maximum = (items|map(attribute='jobs')|max) if items else 1 %}
+            {% if not maximum %}{% set maximum = 1 %}{% endif %}
             {% for item in items %}
             <div class="bar-row"><span class="label" title="{{ item.label }}">{{ item.label }}</span><div class="track"><div class="fill" style="width: {{ (item.jobs * 100 / maximum)|round(1) }}%"></div></div><span class="count">{{ item.jobs }}</span></div>
             {% else %}<p class="muted">No data in this period.</p>{% endfor %}

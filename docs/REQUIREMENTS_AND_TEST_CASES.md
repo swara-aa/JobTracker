@@ -36,6 +36,8 @@
 - Pending queue `/jobs?view=pending&posted_within=24h` exposes locally scored jobs waiting for Gemini.
 - Daily email signup route `/digest-signup` returns 200.
 - Operations route `/operations` returns 200 and shows scoring/digest status.
+- Analytics route `/analytics` returns 200 even when a chart category has zero jobs.
+- Analytics storage queries must complete before the database connection context closes, matching PostgreSQL behavior.
 - `recent_described_job_ids_without_gemini_match` excludes jobs before the exact cutoff timestamp.
 - Automation immediately calls Gemini for recent described jobs while a backlog batch is active.
 - Digest waits before the latest send time when today's described jobs are not fully Gemini scored.
@@ -47,6 +49,6 @@
 ## Latest Verification
 
 - `python -m compileall job_agent tests` passed on 2026-09-27.
-- `python -m pytest` passed: 81 tests on 2026-09-27.
+- `python -m pytest` passed: 83 tests on 2026-09-27.
 - Local Flask smoke test on port 5012 returned 200 for `/`, `/jobs`, `/digest-signup`, and `/operations` on 2026-09-27.
 - Production smoke test returned 200 after login for `/`, `/jobs`, `/operations`, `/digest-signup`, and `/api/operations/status` on 2026-09-27.
