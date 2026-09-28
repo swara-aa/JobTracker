@@ -5,25 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Resume Library · Job Tracker</title>
     <style>
-      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#5b6875; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#1f6b52; --bad:#8f2d23; }
+      :root { --bg:#161831; --paper:#252744; --ink:#f6f2ff; --muted:#b9b5d8; --accent:#39e4f2; --accent-2:#f35acb; --soft:#3b3564; --line:#514b78; --good:#61f0c3; --bad:#ff9ab8; }
       * { box-sizing:border-box; }
-      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,#fffdf8,transparent 35%),var(--bg); font-family:Georgia,"Times New Roman",serif; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,rgba(166,113,255,.42),transparent 32%),radial-gradient(circle at 82% 10%,rgba(57,228,242,.22),transparent 28%),linear-gradient(135deg,#17162e 0%,#202342 48%,#111426 100%); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
       main { max-width:900px; margin:0 auto; padding:32px 20px 56px; }
-      .panel { margin-bottom:20px; padding:26px; border:1px solid var(--line); border-radius:20px; background:var(--paper); box-shadow:0 14px 36px rgba(31,41,51,.07); }
+      .panel { margin-bottom:20px; padding:26px; border:1px solid var(--line); border-radius:22px; background:rgba(37,39,68,.94); box-shadow:0 24px 60px rgba(6,8,24,.32); }
       h1 { margin:0 0 8px; font-size:clamp(2rem,5vw,3.3rem); }
       h2 { margin-top:0; }
       p { line-height:1.5; }
       .muted { color:var(--muted); }
       .button,button { display:inline-block; border:0; border-radius:999px; padding:12px 18px; font:inherit; text-decoration:none; cursor:pointer; }
-      .button { color:var(--accent); background:var(--soft); }
-      button { color:white; background:var(--accent); }
-      input[type=file] { display:block; width:100%; margin:18px 0; padding:16px; border:1px dashed var(--line); border-radius:14px; background:white; font:inherit; }
+      .button { color:var(--ink); background:var(--soft); }
+      button { color:#0d1024; background:linear-gradient(135deg,#39e4f2,#bd5fff 58%,#f35acb); font-weight:800; }
+      input[type=file] { display:block; width:100%; margin:18px 0; padding:16px; border:1px dashed var(--line); border-radius:14px; background:#202342; color:var(--ink); font:inherit; }
       .resume { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 0; border-bottom:1px solid var(--line); }
       .resume:last-child { border-bottom:0; }
       .resume h3 { margin:0 0 4px; }
       .notice,.error { margin:16px 0; padding:13px 15px; border-radius:12px; }
-      .notice { background:#d8efe4; color:var(--good); }
-      .error { background:#f6d9d5; color:var(--bad); }
+      .notice { background:#143c45; color:var(--good); }
+      .error { background:#4b213c; color:var(--bad); }
       @media(max-width:600px) { main{padding:18px 12px 40px}.panel{padding:20px}.resume{align-items:flex-start;flex-direction:column} }
     </style>
   </head>

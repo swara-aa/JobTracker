@@ -5,26 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Daily Job Matches · JobTracker</title>
     <style>
-      :root { --bg:#f3efe8; --paper:#fffaf2; --ink:#1f2933; --muted:#64717d; --accent:#aa3a2a; --soft:#f5d9cb; --line:#dfd5c7; --good:#196a51; }
+      :root { --bg:#161831; --paper:#252744; --ink:#f6f2ff; --muted:#b9b5d8; --accent:#39e4f2; --accent-2:#f35acb; --soft:#3b3564; --line:#514b78; --good:#61f0c3; }
       * { box-sizing:border-box; }
-      body { margin:0; color:var(--ink); background:linear-gradient(180deg,#efe7da 0%,var(--bg) 100%); font-family:Georgia,"Times New Roman",serif; }
+      body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,rgba(166,113,255,.42),transparent 32%),radial-gradient(circle at 82% 10%,rgba(57,228,242,.22),transparent 28%),linear-gradient(135deg,#17162e 0%,#202342 48%,#111426 100%); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
       main { width:min(100%,760px); margin:0 auto; padding:42px 20px 64px; }
       h1 { margin:0 0 8px; font-size:clamp(2.1rem,5vw,3.4rem); line-height:1; }
       p { color:var(--muted); line-height:1.5; }
-      .panel { margin-top:24px; padding:24px; border:1px solid var(--line); border-radius:18px; background:var(--paper); box-shadow:0 16px 40px rgba(31,41,51,.07); }
+      .panel { margin-top:24px; padding:24px; border:1px solid var(--line); border-radius:22px; background:rgba(37,39,68,.94); box-shadow:0 24px 60px rgba(6,8,24,.32); }
       label { display:block; margin:16px 0 7px; font-weight:700; }
-      input { width:100%; padding:12px; border:1px solid #cfc1af; border-radius:9px; background:#fff; font:inherit; }
-      button { margin-top:20px; width:100%; border:0; border-radius:999px; padding:13px 16px; color:#fff; background:var(--accent); font:inherit; font-weight:700; cursor:pointer; }
+      input { width:100%; padding:12px; border:1px solid var(--line); border-radius:12px; background:#202342; color:var(--ink); font:inherit; }
+      button { margin-top:20px; width:100%; border:0; border-radius:999px; padding:13px 16px; color:#0d1024; background:linear-gradient(135deg,#39e4f2,#bd5fff 58%,#f35acb); font:inherit; font-weight:800; cursor:pointer; }
       .roles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px 14px; margin-top:8px; }
       .role { display:flex; gap:8px; align-items:center; color:var(--ink); font-weight:400; }
       .role input { width:auto; }
       .plans { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-top:10px; }
-      .plan { border:1px solid var(--line); border-radius:14px; padding:16px; background:#fff; font-weight:400; }
+      .plan { border:1px solid var(--line); border-radius:16px; padding:16px; background:#343758; font-weight:400; }
       .plan input { width:auto; margin-right:8px; }
       .plan strong { display:block; color:var(--accent); margin-bottom:6px; }
       .plan span { display:block; color:var(--muted); line-height:1.35; }
-      .notice { padding:13px 16px; border-radius:13px; color:var(--good); background:#d8efe4; }
-      .error { padding:13px 16px; border-radius:13px; color:#8b2e24; background:#fbe8e4; }
+      .notice { padding:13px 16px; border-radius:13px; color:var(--good); background:#143c45; }
+      .error { padding:13px 16px; border-radius:13px; color:#ffbdd0; background:#4b213c; }
       @media (max-width:640px) { .roles { grid-template-columns:1fr; } }
     </style>
   </head>
