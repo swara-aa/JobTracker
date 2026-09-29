@@ -39,6 +39,7 @@ DIGEST_FRESH_24H_BONUS = 4
 DIGEST_FRESH_3D_BONUS = 2
 DIGEST_DESCRIPTION_BONUS = 1
 APPLY_CHECK_WORKERS = 8
+FALLBACK_DIGEST_THRESHOLDS = (90, 80, 70)
 logger = logging.getLogger(__name__)
 
 DIGEST_SCORE_SCHEMA = {
@@ -132,6 +133,70 @@ def unsubscribe_digest(token: str) -> bool:
         cursor = connection.execute(
             "UPDATE digest_subscribers SET active = 0 WHERE unsubscribe_token = ?",
             (str(token or "").strip(),),
+        )
+    return bool(cursor.rowcount)
+
+
+def subscriber_by_token(token: str) -> dict[str, object] | None:
+    ensure_database()
+    with connect() as connection:
+        if isinstance(connection, sqlite3.Connection):
+            connection.row_factory = sqlite3.Row
+        row = connection.execute(
+            """
+            SELECT *
+            FROM digest_subscribers
+            WHERE unsubscribe_token = ?
+            """,
+            (str(token or "").strip(),),
+        ).fetchone()
+    if row is None:
+        return None
+    subscriber = dict(row)
+    try:
+        subscriber["roles"] = json.loads(str(subscriber.get("roles") or "[]"))
+    except json.JSONDecodeError:
+        subscriber["roles"] = []
+    return subscriber
+
+
+def update_digest_preferences(
+    token: str,
+    *,
+    name: str,
+    plan: str,
+    roles: list[str],
+    location: str,
+    resume_filename: str | None = None,
+    resume_content: str | None = None,
+) -> bool:
+    cleaned_roles = [role.strip() for role in roles if role.strip()]
+    if not cleaned_roles:
+        raise ValueError("Choose at least one role or field.")
+    assignments = [
+        "name = ?",
+        "plan = ?",
+        "roles = ?",
+        "location = ?",
+        "active = 1",
+    ]
+    values: list[object] = [
+        name.strip(),
+        _normalize_plan(plan),
+        json.dumps(cleaned_roles),
+        location.strip(),
+    ]
+    if resume_content is not None:
+        if len(resume_content.strip()) < 80:
+            raise ValueError("Upload a resume with readable text.")
+        assignments.extend(["resume_filename = ?", "resume_content = ?"])
+        values.extend([(resume_filename or "").strip(), resume_content.strip()])
+    values.append(str(token or "").strip())
+    ensure_database()
+    with connect() as connection:
+        cursor = connection.execute(
+            f"UPDATE digest_subscribers SET {', '.join(assignments)} WHERE unsubscribe_token = ?",
+            tuple(values),
         )
     return bool(cursor.rowcount)
 
@@ -249,7 +314,7 @@ def send_digest_to_subscriber(
     message["Subject"] = (
         f"Your {len(matches)} verified-open job matches for today"
         if matches
-        else "No verified-open 90+ job matches today"
+        else "No verified-open 70+ job matches today"
     )
     message["From"] = config.SMTP_USERNAME
     message["To"] = email
@@ -323,16 +388,33 @@ def top_digest_matches(
     )
     gemini_ranked.sort(key=_digest_rank_key, reverse=True)
     ranked = gemini_ranked or apply_ready_ranked
-    qualified = [
+    eligible = [
         match
         for match in ranked
-        if not match.get("hard_no") and int(match.get("score") or 0) >= config.DIGEST_MIN_SCORE
+        if not match.get("hard_no")
         and (
             not config.DIGEST_REQUIRE_GEMINI
             or str(match.get("score_source") or "").lower() == "gemini"
         )
     ]
-    return qualified[:limit]
+    selected: list[dict[str, object]] = []
+    selected_ids: set[int] = set()
+    for threshold in _digest_thresholds():
+        for match in eligible:
+            if int(match["id"]) in selected_ids or int(match.get("score") or 0) < threshold:
+                continue
+            selected.append(match | {"score_floor": threshold})
+            selected_ids.add(int(match["id"]))
+            if len(selected) >= limit:
+                return selected[:limit]
+    return selected[:limit]
+
+
+def _digest_thresholds() -> tuple[int, ...]:
+    minimum = max(0, min(100, int(config.DIGEST_MIN_SCORE)))
+    if minimum >= 90:
+        return FALLBACK_DIGEST_THRESHOLDS
+    return (minimum,)
 
 
 def _verified_apply_ready_matches(
@@ -698,12 +780,18 @@ def _record_deliveries(subscriber_id: int, matches: list[dict[str, object]]) -> 
 def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:
     name = str(subscriber.get("name") or "there").strip()
     pro_plan = _is_pro_plan(subscriber)
+    token = str(subscriber.get("unsubscribe_token") or "")
+    manage_url = _subscriber_url("digest/manage", token)
+    unsubscribe_url = _subscriber_url("digest/unsubscribe", token)
     lines = [
         f"Hi {name},",
         "",
         f"Here are your top {len(matches)} job matches for today. Each application page was checked before this email was sent. Scores are based on your resume, role preferences, location preference, and posting text.",
         "",
     ]
+    fallback_note = _score_floor_note(matches)
+    if fallback_note:
+        lines.extend([fallback_note, ""])
     if not pro_plan:
         lines.extend(["Free plan: upgrade to Pro for more jobs, richer explanations, salary/source details, and Gemini scoring when available.", ""])
     for index, match in enumerate(matches, start=1):
@@ -717,8 +805,10 @@ def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]
             f"   Location: {match['location']}",
             f"   Priority signals: {_format_list(match.get('priority_signals'))}",
             f"   Why: {match['rationale']}",
-            f"   Matched skills: {matched_skills}",
+        f"   Matched skills: {matched_skills}",
         ])
+        if int(match.get("score") or 0) < 90:
+            lines.append(f"   Score note: Included because there were not enough verified-open 90+ matches today; this still met the {match.get('score_floor', 70)}+ fallback tier.")
         if pro_plan:
             lines.extend([
                 f"   Details: {details}",
@@ -726,13 +816,21 @@ def _plain_digest(subscriber: dict[str, object], matches: list[dict[str, object]
                 f"   Description: {description}",
             ])
         lines.extend([f"   Apply: {match['link']}", ""])
-    lines.append("You are receiving this because you subscribed to JobTracker daily matches.")
+    lines.extend([
+        f"Manage preferences: {manage_url}",
+        f"Unsubscribe: {unsubscribe_url}",
+        "You are receiving this because you subscribed to JobTracker daily matches.",
+    ])
     return "\n".join(lines)
 
 
 def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]) -> str:
     name = str(subscriber.get("name") or "there").strip()
     pro_plan = _is_pro_plan(subscriber)
+    token = str(subscriber.get("unsubscribe_token") or "")
+    manage_url = _subscriber_url("digest/manage", token)
+    unsubscribe_url = _subscriber_url("digest/unsubscribe", token)
+    fallback_note = _score_floor_note(matches)
     items = []
     for match in matches:
         details = _format_job_details(match)
@@ -750,6 +848,7 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
                 <div style="margin-top:8px;color:#202b36;"><strong>Priority signals:</strong> {_escape(_format_list(match.get('priority_signals')))}</div>
                 <div style="margin-top:8px;color:#202b36;"><strong>Why it matched:</strong> {_escape(match['rationale'])}</div>
                 <div style="margin-top:8px;color:#196a51;"><strong>Matched skills:</strong> {_escape(matched_skills)}</div>
+                {_fallback_html_note(match)}
                 {_pro_html_details(details, missing_skills, description) if pro_plan else ''}
                 <div style="margin-top:10px;"><a href="{_escape(match['link'])}" style="color:#aa3a2a;font-weight:bold;">View job</a></div>
               </td>
@@ -760,21 +859,26 @@ def _html_digest(subscriber: dict[str, object], matches: list[dict[str, object]]
     <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
       <h1 style="margin:0 0 12px;">Your top job matches</h1>
       <p>Hi {_escape(name)}, here are the best new matches for your resume today. Each application page was checked before this email was sent. Scores use your resume, role preferences, location preference, and posting text.</p>
+      {f'<p style="background:#fff4d8;color:#755526;padding:12px;border-radius:12px;"><strong>Score note:</strong> {_escape(fallback_note)}</p>' if fallback_note else ''}
       {_free_upgrade_html() if not pro_plan else ''}
       <table width="100%" cellspacing="0" cellpadding="0">{''.join(items)}</table>
+      <p style="margin-top:18px;color:#64717d;">Manage preferences: <a href="{_escape(manage_url)}">update roles, location, or resume</a> · <a href="{_escape(unsubscribe_url)}">unsubscribe</a></p>
     </div>
     """
 
 
 def _plain_no_match_digest(subscriber: dict[str, object]) -> str:
     name = str(subscriber.get("name") or "there").strip()
+    token = str(subscriber.get("unsubscribe_token") or "")
     return "\n".join(
         [
             f"Hi {name},",
             "",
-            "No new jobs both reached your 90+ match threshold and passed the live application-page check when today's digest was prepared.",
+            "No new jobs reached the 70+ fallback threshold and passed the live application-page check when today's digest was prepared.",
             "JobTracker will keep collecting, scoring, and verifying new postings for tomorrow's email.",
             "",
+            f"Manage preferences: {_subscriber_url('digest/manage', token)}",
+            f"Unsubscribe: {_subscriber_url('digest/unsubscribe', token)}",
             "You are receiving this because you subscribed to JobTracker daily matches.",
         ]
     )
@@ -782,13 +886,42 @@ def _plain_no_match_digest(subscriber: dict[str, object]) -> str:
 
 def _html_no_match_digest(subscriber: dict[str, object]) -> str:
     name = str(subscriber.get("name") or "there").strip()
+    token = str(subscriber.get("unsubscribe_token") or "")
+    manage_url = _subscriber_url("digest/manage", token)
+    unsubscribe_url = _subscriber_url("digest/unsubscribe", token)
     return f"""
     <div style="font-family:Georgia,serif;color:#202b36;background:#fffaf2;padding:20px;">
-      <h1 style="margin:0 0 12px;">No verified-open 90+ matches today</h1>
-      <p>Hi {_escape(name)}, no new jobs both reached your 90+ match threshold and passed the live application-page check when today's digest was prepared.</p>
+      <h1 style="margin:0 0 12px;">No verified-open 70+ matches today</h1>
+      <p>Hi {_escape(name)}, no new jobs reached the 70+ fallback threshold and passed the live application-page check when today's digest was prepared.</p>
       <p>JobTracker will keep collecting, scoring, and verifying new postings for tomorrow's email.</p>
+      <p style="margin-top:18px;color:#64717d;">Manage preferences: <a href="{_escape(manage_url)}">update roles, location, or resume</a> · <a href="{_escape(unsubscribe_url)}">unsubscribe</a></p>
     </div>
     """
+
+
+def _score_floor_note(matches: list[dict[str, object]]) -> str:
+    lowest_floor = min((int(match.get("score_floor") or 90) for match in matches), default=90)
+    if lowest_floor >= 90:
+        return ""
+    if lowest_floor >= 80:
+        return "Not enough verified-open 90+ matches were available today, so JobTracker included the best verified-open 80+ matches."
+    return "Not enough verified-open 90+ or 80+ matches were available today, so JobTracker included the best verified-open 70+ matches instead of sending low-quality or closed postings."
+
+
+def _fallback_html_note(match: dict[str, object]) -> str:
+    if int(match.get("score") or 0) >= 90:
+        return ""
+    floor = int(match.get("score_floor") or 70)
+    return f'<div style="margin-top:8px;color:#755526;background:#fff4d8;border-radius:10px;padding:8px 10px;"><strong>Score note:</strong> Included because there were not enough verified-open 90+ matches today; this still met the {floor}+ fallback tier.</div>'
+
+
+def _subscriber_url(path: str, token: str) -> str:
+    token = token.strip()
+    base = str(get_user_setting("JOBTRACKER_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if not base:
+        hostname = str(get_user_setting("WEBSITE_HOSTNAME") or "").strip()
+        base = f"https://{hostname}" if hostname else "https://swara-jobtracker-live-api.azurewebsites.net"
+    return f"{base}/{path.strip('/')}/{token}"
 
 
 def _posted_at(job: dict[str, object]) -> datetime:

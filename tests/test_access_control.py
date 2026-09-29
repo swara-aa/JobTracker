@@ -43,6 +43,11 @@ class AccessControlTests(unittest.TestCase):
         response = self.client.get("/digest-signup")
         self.assertEqual(response.status_code, 200)
 
+    def test_launch_legal_and_manage_pages_stay_public(self) -> None:
+        for path in ("/landing", "/privacy", "/terms", "/digest/manage/not-a-real-token"):
+            response = self.client.get(path)
+            self.assertIn(response.status_code, {200, 404})
+
     def test_correct_password_opens_dashboard(self) -> None:
         response = self.client.post("/login", data={"password": "test-password", "next": "/"})
         self.assertEqual(response.status_code, 302)

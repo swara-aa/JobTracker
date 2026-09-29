@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Daily Job Matches · JobTracker</title>
+    <title>Manage Daily Matches · JobTracker</title>
     <style>
-      :root { --bg:#161831; --paper:#252744; --ink:#f6f2ff; --muted:#b9b5d8; --accent:#39e4f2; --accent-2:#f35acb; --soft:#3b3564; --line:#514b78; --good:#61f0c3; }
+      :root { --bg:#161831; --paper:#252744; --ink:#f6f2ff; --muted:#b9b5d8; --accent:#39e4f2; --accent-2:#f35acb; --soft:#3b3564; --line:#514b78; --good:#61f0c3; --bad:#ff9ab8; }
       * { box-sizing:border-box; }
       body { margin:0; color:var(--ink); background:radial-gradient(circle at top left,rgba(166,113,255,.42),transparent 32%),radial-gradient(circle at 82% 10%,rgba(57,228,242,.22),transparent 28%),linear-gradient(135deg,#17162e 0%,#202342 48%,#111426 100%); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
       main { width:min(100%,760px); margin:0 auto; padding:42px 20px 64px; }
@@ -24,51 +24,49 @@
       .plan strong { display:block; color:var(--accent); margin-bottom:6px; }
       .plan span { display:block; color:var(--muted); line-height:1.35; }
       .notice { padding:13px 16px; border-radius:13px; color:var(--good); background:#143c45; }
-      .error { padding:13px 16px; border-radius:13px; color:#ffbdd0; background:#4b213c; }
-      @media (max-width:640px) { .roles { grid-template-columns:1fr; } }
+      .error { padding:13px 16px; border-radius:13px; color:var(--bad); background:#4b213c; }
+      a { color:var(--accent); }
+      @media (max-width:640px) { .roles,.plans { grid-template-columns:1fr; } }
     </style>
   </head>
   <body>
     <main>
-      <h1>Daily Job Matches</h1>
-      <p>Upload a resume, choose the fields you want, and receive the strongest new job matches every morning. Start free, then use Pro Preview for richer scoring while billing is being added.</p>
-      <p><a href="/landing">How it works</a> · <a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms</a></p>
+      <h1>Manage Daily Matches</h1>
+      <p>Update your roles, location, plan, or upload a replacement resume. Changes affect future daily emails.</p>
       {% if message %}<div class="notice">{{ message }}</div>{% endif %}
       {% if error %}<div class="error">{{ error }}</div>{% endif %}
-      {% if role_options %}
+      {% if subscriber %}
       <form class="panel" method="post" enctype="multipart/form-data">
         <label for="name">Name</label>
-        <input id="name" name="name" autocomplete="name">
-        <label for="email">Email</label>
-        <input id="email" name="email" type="email" autocomplete="email" required>
+        <input id="name" name="name" autocomplete="name" value="{{ subscriber.name }}">
         <label>Plan</label>
         <div class="plans">
           <label class="plan">
-            <input type="radio" name="plan" value="free" checked>
+            <input type="radio" name="plan" value="free" {% if subscriber.plan != 'pro' %}checked{% endif %}>
             <strong>Free</strong>
-            <span>Top 10 jobs/day, local match score, why it matched, matched skills, apply link.</span>
+            <span>Top 10 jobs/day with essentials.</span>
           </label>
           <label class="plan">
-            <input type="radio" name="plan" value="pro">
+            <input type="radio" name="plan" value="pro" {% if subscriber.plan == 'pro' %}checked{% endif %}>
             <strong>Pro Preview</strong>
-            <span>Top 25 jobs/day, richer job details, missing skills, salary/source details, Gemini scoring when available.</span>
+            <span>Top 25 jobs/day with richer details.</span>
           </label>
         </div>
         <label for="location">Preferred location</label>
-        <input id="location" name="location" placeholder="Remote, California, Dallas, New York">
+        <input id="location" name="location" value="{{ subscriber.location }}" placeholder="Remote, California, Dallas, New York">
         <label>Roles and fields</label>
         <div class="roles">
           {% for role in role_options %}
-          <label class="role"><input type="checkbox" name="roles" value="{{ role }}" {% if role in selected_roles %}checked{% endif %}> {{ role }}</label>
+          <label class="role"><input type="checkbox" name="roles" value="{{ role }}" {% if role in subscriber.roles %}checked{% endif %}> {{ role }}</label>
           {% endfor %}
         </div>
         <label for="custom_role">Other role</label>
         <input id="custom_role" name="custom_role" placeholder="e.g. Lab Technician, Paralegal, Teacher">
-        <label for="resume">Resume</label>
-        <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt" required>
-        <p>By signing up, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Every email includes manage-preferences and unsubscribe links.</p>
-        <button type="submit">Sign Up For Daily Matches</button>
+        <label for="resume">Replace resume optional</label>
+        <input id="resume" name="resume" type="file" accept=".pdf,.docx,.txt">
+        <button type="submit">Save Preferences</button>
       </form>
+      <p><a href="/digest/unsubscribe/{{ token }}">Unsubscribe from daily matches</a></p>
       {% endif %}
     </main>
   </body>

@@ -11,8 +11,10 @@ from job_agent.digest import (
     _plain_digest,
     active_digest_subscribers,
     send_digest_to_subscriber,
+    subscriber_by_token,
     subscribe_to_digest,
     top_digest_matches,
+    update_digest_preferences,
 )
 from job_agent.models import JobPosting
 from job_agent.storage import save_jobs
@@ -186,7 +188,7 @@ class DigestTests(unittest.TestCase):
 
         self.assertTrue(result["sent"])
         message = smtp.return_value.__enter__.return_value.send_message.call_args.args[0]
-        self.assertEqual(message["Subject"], "No verified-open 90+ job matches today")
+        self.assertEqual(message["Subject"], "No verified-open 70+ job matches today")
         record_deliveries.assert_called_once_with(1, [])
 
     def test_digest_score_prefers_stored_gemini_match(self) -> None:
@@ -206,7 +208,7 @@ class DigestTests(unittest.TestCase):
         self.assertEqual(score["evidence"], ["Campaign Analytics", "Content Strategy"])
         self.assertEqual(score["missing"], ["HubSpot"])
 
-    def test_digest_excludes_matches_below_minimum_score(self) -> None:
+    def test_digest_excludes_matches_below_fallback_score(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             database_path = Path(temporary_directory) / "jobs.db"
             with (
@@ -260,6 +262,106 @@ class DigestTests(unittest.TestCase):
                 matches = top_digest_matches(subscriber_record)
 
         self.assertEqual(matches, [])
+
+    def test_digest_falls_back_to_80_then_70_with_score_notes(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            scores_by_title = {
+                "Best Available": 84,
+                "Still Useful": 73,
+                "Too Weak": 64,
+            }
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+                patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", False),
+                patch("job_agent.digest.config.DIGEST_MIN_SCORE", 90),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
+                patch(
+                    "job_agent.digest._digest_score",
+                    side_effect=lambda job, _resume: (
+                        {
+                            "score": scores_by_title[str(job["title"])],
+                            "rationale": "Best available verified-open match.",
+                            "evidence": [],
+                            "missing": [],
+                            "hard_no": False,
+                        },
+                        "local",
+                    ),
+                ),
+            ):
+                subscriber = subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Marketing & Communications"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=RESUME_TEXT,
+                )
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Marketing & Communications",
+                            title=title,
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=datetime.now(timezone.utc),
+                            link=f"https://example.test/{title.replace(' ', '-').lower()}",
+                            description="Create content strategy and campaign analytics.",
+                        )
+                        for title in scores_by_title
+                    ]
+                )
+                subscriber_record = active_digest_subscribers()[0] | subscriber
+                matches = top_digest_matches(subscriber_record)
+                body = _plain_digest(subscriber_record, matches)
+
+        self.assertEqual([match["title"] for match in matches], ["Best Available", "Still Useful"])
+        self.assertEqual(matches[0]["score_floor"], 80)
+        self.assertEqual(matches[1]["score_floor"], 70)
+        self.assertIn("not enough verified-open 90+", body.lower())
+        self.assertIn("fallback tier", body)
+
+    def test_subscriber_preferences_can_be_managed_by_token(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+            ):
+                subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Marketing & Communications"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=RESUME_TEXT,
+                )
+                subscriber = active_digest_subscribers()[0]
+                token = str(subscriber["unsubscribe_token"])
+                updated = update_digest_preferences(
+                    token,
+                    name="Updated",
+                    plan="pro",
+                    roles=["Finance & Accounting"],
+                    location="Remote",
+                )
+                refreshed = subscriber_by_token(token)
+
+        self.assertTrue(updated)
+        self.assertIsNotNone(refreshed)
+        self.assertEqual(refreshed["name"], "Updated")
+        self.assertEqual(refreshed["plan"], "pro")
+        self.assertEqual(refreshed["roles"], ["Finance & Accounting"])
+        self.assertEqual(refreshed["location"], "Remote")
 
     def test_pro_digest_uses_gemini_scores_before_thresholding(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

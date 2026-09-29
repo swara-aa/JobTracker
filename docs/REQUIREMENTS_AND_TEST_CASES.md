@@ -10,6 +10,9 @@
 - Jobs collected recently but waiting for Gemini must remain visible through the pending Gemini queue.
 - New described jobs must be prioritized for immediate Gemini scoring before backlog batch scoring.
 - The subscriber digest must only send qualifying matches that pass the configured score threshold and live apply-readiness check.
+- If no/few verified-open 90+ matches are available, subscriber digest recommendations may fall back to verified-open 80+ and then 70+ matches, with clear lower-score messaging.
+- Every subscriber email must include manage-preferences and unsubscribe links.
+- Public launch pages must explain what subscribers get, delivery timing, free vs Pro Preview, privacy, and terms before resume/email collection.
 - Subscriber job recommendations must use Gemini as the score source when `JOBTRACKER_DIGEST_REQUIRE_GEMINI=true`.
 - Manual digest sending must use the same Gemini-enabled ranking path as the automatic daily digest.
 - Daily digest delivery should wait for morning Gemini scoring until the latest send deadline, then retry when no qualifying matches are available.
@@ -35,9 +38,13 @@
 - Dashboard, Browse Jobs, Settings, Analytics, Resume, Digest Signup, Login, Job Detail, and LinkedIn Import share the same purple/cyan visual system and keep action controls visually separated.
 - Pending queue `/jobs?view=pending&posted_within=24h` exposes locally scored jobs waiting for Gemini.
 - Daily email signup route `/digest-signup` returns 200.
+- Public launch routes `/landing`, `/privacy`, and `/terms` return 200 without login.
+- Subscriber manage route `/digest/manage/<token>` is public and allows preference updates for valid tokens.
 - Operations route `/operations` returns 200 and shows scoring/digest status.
 - Analytics route `/analytics` returns 200 even when a chart category has zero jobs.
 - Analytics storage queries must complete before the database connection context closes, matching PostgreSQL behavior.
+- Digest matching excludes scores below 70 when 90+/80+ fallback tiers are exhausted.
+- Digest email copy explains why 80+ or 70+ matches are included.
 - `recent_described_job_ids_without_gemini_match` excludes jobs before the exact cutoff timestamp.
 - Automation immediately calls Gemini for recent described jobs while a backlog batch is active.
 - Digest waits before the latest send time when today's described jobs are not fully Gemini scored.
@@ -49,6 +56,7 @@
 ## Latest Verification
 
 - `python -m compileall job_agent tests` passed on 2026-09-27.
-- `python -m pytest` passed: 83 tests on 2026-09-27.
+- `python -m pytest` passed: 86 tests on 2026-09-28.
 - Local Flask smoke test on port 5012 returned 200 for `/`, `/jobs`, `/digest-signup`, and `/operations` on 2026-09-27.
-- Production smoke test returned 200 after login for `/`, `/jobs`, `/operations`, `/analytics`, `/resumes`, `/digest-signup`, `/linkedin-review`, and `/api/operations/status` on 2026-09-27.
+- Production smoke test returned 200 for public `/landing`, `/privacy`, `/terms`, and `/digest-signup` on 2026-09-28.
+- Production smoke test returned 200 after login for `/`, `/jobs`, `/operations`, `/analytics`, and `/api/operations/status` on 2026-09-28; production readiness blocking count was `0`, automation was running, and automation `last_error` was empty.

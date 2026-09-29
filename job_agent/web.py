@@ -253,8 +253,12 @@ def _public_endpoint() -> bool:
         "health_check",
         "login",
         "static",
+        "landing_page",
+        "privacy_policy",
+        "terms_of_service",
         "digest_signup",
         "digest_unsubscribe",
+        "digest_manage",
     }
 
 
@@ -323,6 +327,18 @@ def create_app() -> Flask:
     def logout():
         session.clear()
         return redirect(url_for("login"))
+
+    @app.get("/landing")
+    def landing_page():
+        return render_template("landing.html")
+
+    @app.get("/privacy")
+    def privacy_policy():
+        return render_template("privacy.html")
+
+    @app.get("/terms")
+    def terms_of_service():
+        return render_template("terms.html")
 
     @app.get("/api/health")
     def health_check():
@@ -395,6 +411,60 @@ def create_app() -> Flask:
             message=message,
             role_options=[],
             selected_roles=set(),
+        )
+
+    @app.route("/digest/manage/<token>", methods=["GET", "POST"])
+    def digest_manage(token: str):
+        from job_agent.digest import subscriber_by_token, update_digest_preferences
+
+        error = ""
+        message = ""
+        role_options = sorted({label for label, _ in ROLE_FAMILIES}.union(ROLE_QUERIES))
+        subscriber = subscriber_by_token(token)
+        if subscriber is None:
+            return render_template(
+                "digest_manage.html",
+                error="This preferences link is no longer active.",
+                message="",
+                role_options=role_options,
+                subscriber={},
+                token=token,
+            ), 404
+        if request.method == "POST":
+            try:
+                selected_roles = [
+                    role.strip()
+                    for role in request.form.getlist("roles")
+                    if role.strip()
+                ]
+                custom_role = request.form.get("custom_role", "").strip()
+                if custom_role:
+                    selected_roles.append(custom_role)
+                uploads = [file for file in request.files.getlist("resume") if file.filename]
+                resume_filename = None
+                resume_content = None
+                if uploads:
+                    resume_filename, resume_content = extract_resume(uploads[0])
+                update_digest_preferences(
+                    token,
+                    name=request.form.get("name", ""),
+                    plan=request.form.get("plan", "free"),
+                    roles=selected_roles,
+                    location=request.form.get("location", ""),
+                    resume_filename=resume_filename,
+                    resume_content=resume_content,
+                )
+                message = "Your daily match preferences were updated."
+                subscriber = subscriber_by_token(token) or subscriber
+            except Exception as exc:  # noqa: BLE001
+                error = str(exc)
+        return render_template(
+            "digest_manage.html",
+            error=error,
+            message=message,
+            role_options=role_options,
+            subscriber=subscriber,
+            token=token,
         )
 
     @app.template_filter("relative_time")
