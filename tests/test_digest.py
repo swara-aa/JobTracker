@@ -543,6 +543,119 @@ class DigestTests(unittest.TestCase):
 
         self.assertEqual(matches, [])
 
+    def test_major_selection_matches_related_fresher_jobs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            now = datetime.now(timezone.utc)
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+                patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", False),
+                patch("job_agent.digest.config.DIGEST_MIN_SCORE", 0),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
+            ):
+                subscriber = subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Computer Science"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=(
+                        "Computer science student with Python, Java, React, APIs, SQL, data analysis, "
+                        "machine learning coursework, and internship projects."
+                    ),
+                )
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Software Engineering",
+                            title="Software Engineer Intern",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=now,
+                            link="https://example.test/software-intern",
+                            description="Internship for computer science students building Python APIs.",
+                        ),
+                        JobPosting(
+                            source="test",
+                            role_query="Marketing & Communications",
+                            title="Marketing Intern",
+                            company="Other",
+                            location="San Francisco, CA",
+                            posting_date=now,
+                            link="https://example.test/marketing-intern",
+                            description="Create content and social campaigns.",
+                        ),
+                    ]
+                )
+                subscriber_record = active_digest_subscribers()[0] | subscriber
+                matches = top_digest_matches(subscriber_record)
+
+        self.assertEqual([match["title"] for match in matches], ["Software Engineer Intern"])
+        self.assertIn("internship/co-op friendly", matches[0]["priority_signals"])
+
+    def test_senior_roles_are_filtered_for_fresher_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            database_path = Path(temporary_directory) / "jobs.db"
+            now = datetime.now(timezone.utc)
+            with (
+                patch("job_agent.storage.DB_PATH", database_path),
+                patch("job_agent.digest.DB_PATH", database_path),
+                patch("job_agent.database.DB_PATH", database_path),
+                patch("job_agent.digest.get_user_setting", return_value=""),
+                patch("job_agent.digest.config.DIGEST_REQUIRE_GEMINI", False),
+                patch("job_agent.digest.config.DIGEST_MIN_SCORE", 0),
+                patch(
+                    "job_agent.digest._verified_apply_ready_matches",
+                    side_effect=lambda matches, **_kwargs: matches,
+                ),
+            ):
+                subscriber = subscribe_to_digest(
+                    email="person@example.com",
+                    name="Person",
+                    roles=["Finance"],
+                    location="California",
+                    resume_filename="resume.txt",
+                    resume_content=(
+                        "Finance student with Excel, accounting coursework, financial modeling, "
+                        "budget analysis, and internship project experience."
+                    ),
+                )
+                save_jobs(
+                    [
+                        JobPosting(
+                            source="test",
+                            role_query="Finance & Accounting",
+                            title="Senior Financial Analyst",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=now,
+                            link="https://example.test/senior-finance",
+                            description="Requires 6+ years of financial planning experience.",
+                        ),
+                        JobPosting(
+                            source="test",
+                            role_query="Finance & Accounting",
+                            title="Finance Intern",
+                            company="Example",
+                            location="San Francisco, CA",
+                            posting_date=now,
+                            link="https://example.test/finance-intern",
+                            description="Internship for finance or accounting students with Excel skills.",
+                        ),
+                    ]
+                )
+                subscriber_record = active_digest_subscribers()[0] | subscriber
+                matches = top_digest_matches(subscriber_record)
+
+        self.assertEqual([match["title"] for match in matches], ["Finance Intern"])
+
 
 if __name__ == "__main__":
     unittest.main()

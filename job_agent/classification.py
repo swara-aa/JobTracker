@@ -174,7 +174,127 @@ ROLE_FAMILIES: tuple[tuple[str, tuple[str, ...]], ...] = (
             "privacy",
         ),
     ),
+    (
+        "Engineering",
+        (
+            "mechanical engineer",
+            "electrical engineer",
+            "civil engineer",
+            "industrial engineer",
+            "manufacturing engineer",
+            "quality engineer",
+            "systems engineer",
+            "process engineer",
+        ),
+    ),
+    (
+        "Science & Research",
+        (
+            "research assistant",
+            "research associate",
+            "laboratory",
+            "lab technician",
+            "scientist",
+            "biology",
+            "chemistry",
+            "clinical research",
+            "research coordinator",
+        ),
+    ),
+    (
+        "Business & Strategy",
+        (
+            "business analyst",
+            "strategy analyst",
+            "management consultant",
+            "consultant",
+            "business operations",
+            "chief of staff",
+            "market research",
+        ),
+    ),
+    (
+        "Media & Creative",
+        (
+            "journalist",
+            "editor",
+            "producer",
+            "video",
+            "photographer",
+            "media",
+            "creative",
+            "public relations",
+        ),
+    ),
+    (
+        "Public Policy & Government",
+        (
+            "policy analyst",
+            "public policy",
+            "government",
+            "legislative",
+            "public affairs",
+            "program associate",
+            "case worker",
+        ),
+    ),
+    (
+        "Hospitality & Tourism",
+        (
+            "hospitality",
+            "hotel",
+            "restaurant",
+            "event coordinator",
+            "tourism",
+            "guest services",
+            "food service",
+        ),
+    ),
 )
+
+
+MAJOR_ROLE_ALIASES: dict[str, tuple[str, ...]] = {
+    "computer science": ("Software Engineering", "Data & Analytics", "AI / Machine Learning"),
+    "software engineering": ("Software Engineering", "AI / Machine Learning"),
+    "information systems": ("Software Engineering", "Data & Analytics", "Product & Project Management"),
+    "information technology": ("Software Engineering", "Data & Analytics"),
+    "data science": ("Data & Analytics", "AI / Machine Learning"),
+    "statistics": ("Data & Analytics", "Finance & Accounting"),
+    "mathematics": ("Data & Analytics", "Finance & Accounting", "AI / Machine Learning"),
+    "business": ("Business & Strategy", "Product & Project Management", "Operations & Supply Chain", "Sales & Customer Success"),
+    "business administration": ("Business & Strategy", "Product & Project Management", "Operations & Supply Chain"),
+    "management": ("Business & Strategy", "Product & Project Management", "Operations & Supply Chain"),
+    "marketing": ("Marketing & Communications", "Sales & Customer Success", "Media & Creative"),
+    "communications": ("Marketing & Communications", "Media & Creative"),
+    "journalism": ("Media & Creative", "Marketing & Communications"),
+    "finance": ("Finance & Accounting", "Business & Strategy", "Data & Analytics"),
+    "accounting": ("Finance & Accounting",),
+    "economics": ("Finance & Accounting", "Data & Analytics", "Business & Strategy"),
+    "human resources": ("Human Resources & Recruiting",),
+    "psychology": ("Human Resources & Recruiting", "Healthcare", "Education"),
+    "biology": ("Science & Research", "Healthcare"),
+    "chemistry": ("Science & Research", "Healthcare"),
+    "biochemistry": ("Science & Research", "Healthcare"),
+    "health sciences": ("Healthcare", "Science & Research"),
+    "nursing": ("Healthcare",),
+    "pre med": ("Healthcare", "Science & Research"),
+    "education": ("Education",),
+    "mechanical engineering": ("Engineering", "Operations & Supply Chain"),
+    "electrical engineering": ("Engineering", "Software Engineering"),
+    "civil engineering": ("Engineering", "Architecture & Construction"),
+    "industrial engineering": ("Engineering", "Operations & Supply Chain", "Data & Analytics"),
+    "supply chain": ("Operations & Supply Chain",),
+    "logistics": ("Operations & Supply Chain",),
+    "design": ("Design & UX", "Media & Creative"),
+    "graphic design": ("Design & UX", "Media & Creative"),
+    "law": ("Legal & Compliance", "Public Policy & Government"),
+    "criminal justice": ("Legal & Compliance", "Public Policy & Government"),
+    "political science": ("Public Policy & Government", "Legal & Compliance"),
+    "public policy": ("Public Policy & Government",),
+    "hospitality": ("Hospitality & Tourism", "Sales & Customer Success"),
+}
+
+MAJOR_OPTIONS: tuple[str, ...] = tuple(sorted({major.title() for major in MAJOR_ROLE_ALIASES}))
 
 
 STATE_NAMES: dict[str, str] = {
@@ -331,6 +451,22 @@ def infer_role_family(title: str, description: str = "") -> str:
     if words:
         return " ".join(word.capitalize() for word in words[:3])
     return "General"
+
+
+def expand_role_preferences(roles: list[str] | tuple[str, ...]) -> set[str]:
+    expanded: set[str] = set()
+    role_labels = {label for label, _keywords in ROLE_FAMILIES}
+    for role in roles:
+        clean_role = str(role or "").strip()
+        if not clean_role:
+            continue
+        expanded.add(clean_role)
+        normalized = _normalize(clean_role)
+        expanded.update(MAJOR_ROLE_ALIASES.get(normalized, ()))
+        for label in role_labels:
+            if _normalize(label) == normalized:
+                expanded.add(label)
+    return expanded
 
 
 def normalize_location_group(location: str) -> str:

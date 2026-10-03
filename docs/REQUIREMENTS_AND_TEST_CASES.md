@@ -13,6 +13,8 @@
 - If no/few verified-open 90+ matches are available, subscriber digest recommendations may fall back to verified-open 80+ and then 70+ matches, with clear lower-score messaging.
 - Every subscriber email must include manage-preferences and unsubscribe links.
 - Public launch pages must explain what subscribers get, delivery timing, free vs Pro Preview, privacy, and terms before resume/email collection.
+- Subscriber role preferences must support both career choices and common majors by mapping majors such as Computer Science, Biology, Finance, Accounting, Marketing, Engineering, and Education into relevant job families.
+- Subscriber digest recommendations should prioritize fresher-friendly roles such as internships, co-ops, new-grad, junior, associate, trainee, apprentice, campus, and early-career roles while filtering clearly senior-only postings.
 - Subscriber job recommendations must use Gemini as the score source when `JOBTRACKER_DIGEST_REQUIRE_GEMINI=true`.
 - Manual digest sending must use the same Gemini-enabled ranking path as the automatic daily digest.
 - Daily digest delivery should wait for morning Gemini scoring until the latest send deadline, then retry when no qualifying matches are available.
@@ -45,6 +47,8 @@
 - Analytics storage queries must complete before the database connection context closes, matching PostgreSQL behavior.
 - Digest matching excludes scores below 70 when 90+/80+ fallback tiers are exhausted.
 - Digest email copy explains why 80+ or 70+ matches are included.
+- Major-based subscriber preferences expand into relevant career families before matching jobs.
+- Senior-only or high-years-required jobs are excluded from fresher-focused subscriber digests when appropriate internship/new-grad/entry-level alternatives exist.
 - `recent_described_job_ids_without_gemini_match` excludes jobs before the exact cutoff timestamp.
 - Automation immediately calls Gemini for recent described jobs while a backlog batch is active.
 - Digest waits before the latest send time when today's described jobs are not fully Gemini scored.
@@ -55,8 +59,9 @@
 
 ## Latest Verification
 
-- `python -m compileall job_agent tests` passed on 2026-09-27.
-- `python -m pytest` passed: 86 tests on 2026-09-28.
+- `python -m compileall job_agent tests` passed on 2026-10-03.
+- `python -m pytest` passed: 89 tests on 2026-10-03.
+- Local route smoke returned 200 for `/landing`, `/digest-signup`, `/privacy`, `/terms`, `/`, `/jobs`, `/operations`, `/analytics`, and `/api/operations/status` on 2026-10-03.
 - Local Flask smoke test on port 5012 returned 200 for `/`, `/jobs`, `/digest-signup`, and `/operations` on 2026-09-27.
 - Production smoke test returned 200 for public `/landing`, `/privacy`, `/terms`, and `/digest-signup` on 2026-09-28.
 - Production smoke test returned 200 after login for `/`, `/jobs`, `/operations`, `/analytics`, and `/api/operations/status` on 2026-09-28; production readiness blocking count was `0`, automation was running, and automation `last_error` was empty.

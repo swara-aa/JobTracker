@@ -27,7 +27,7 @@ from job_agent.config import (
     configured_workday_sites,
     get_user_setting,
 )
-from job_agent.classification import ROLE_FAMILIES
+from job_agent.classification import MAJOR_OPTIONS, ROLE_FAMILIES
 from job_agent.company_intelligence import get_company_attributes, initialize_company_intelligence
 from job_agent.posting_quality import verification_reasons_by_job
 from job_agent.storage import (
@@ -268,6 +268,10 @@ def _safe_next_url(value: str) -> str:
     return url_for("index")
 
 
+def _subscriber_role_options() -> list[str]:
+    return sorted({label for label, _ in ROLE_FAMILIES}.union(ROLE_QUERIES).union(MAJOR_OPTIONS))
+
+
 def create_app() -> Flask:
     initialize_company_intelligence()
     app = Flask(__name__)
@@ -360,7 +364,7 @@ def create_app() -> Flask:
 
         error = ""
         message = ""
-        role_options = sorted({label for label, _ in ROLE_FAMILIES}.union(ROLE_QUERIES))
+        role_options = _subscriber_role_options()
         selected_roles: list[str] = []
         if request.method == "POST":
             try:
@@ -419,7 +423,7 @@ def create_app() -> Flask:
 
         error = ""
         message = ""
-        role_options = sorted({label for label, _ in ROLE_FAMILIES}.union(ROLE_QUERIES))
+        role_options = _subscriber_role_options()
         subscriber = subscriber_by_token(token)
         if subscriber is None:
             return render_template(

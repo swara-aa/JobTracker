@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from job_agent import config
 from job_agent.apply_readiness import ApplyReadiness, validate_apply_readiness
-from job_agent.classification import infer_role_family, location_matches
+from job_agent.classification import expand_role_preferences, infer_role_family, location_matches
 from job_agent.company_intelligence import get_company_attributes
 from job_agent.config import DB_PATH, get_user_setting
 from job_agent.database import backend_name, connect
@@ -38,6 +38,7 @@ DIGEST_ROLE_HIRING_BONUS = 3
 DIGEST_FRESH_24H_BONUS = 4
 DIGEST_FRESH_3D_BONUS = 2
 DIGEST_DESCRIPTION_BONUS = 1
+DIGEST_FRESHER_BONUS = 8
 APPLY_CHECK_WORKERS = 8
 FALLBACK_DIGEST_THRESHOLDS = (90, 80, 70)
 logger = logging.getLogger(__name__)
@@ -367,6 +368,7 @@ def top_digest_matches(
         if int(job["id"]) not in delivered
         and str(job.get("application_status") or "").lower() != "closed"
         and _is_recent_enough(job)
+        and _is_fresher_suitable(job)
         and _role_matches(job, roles)
         and location_matches(str(job.get("location") or ""), location)
     ]
@@ -545,17 +547,18 @@ def _digest_prefilter_key(job: dict[str, object]) -> tuple[int, int, datetime]:
     """Cheap ranking before subscriber-specific scoring and optional Gemini calls."""
     stored_score = int(job.get("resume_match_score") or job.get("local_match_score") or 0)
     return (
-        stored_score + _company_priority_bonus(job) + _freshness_bonus(job),
+        stored_score + _company_priority_bonus(job) + _freshness_bonus(job) + _fresher_bonus(job),
         stored_score,
         _posted_at(job),
     )
 
 
-def _digest_rank_key(match: dict[str, object]) -> tuple[int, int, datetime]:
+def _digest_rank_key(match: dict[str, object]) -> tuple[int, int, int, datetime]:
     """Final digest ranking: match quality first, then company and freshness signals."""
     score = int(match.get("score") or 0)
     return (
         score + _company_priority_bonus(match) + _freshness_bonus(match) + _description_bonus(match),
+        _fresher_bonus(match),
         score,
         _posted_at(match),
     )
@@ -597,6 +600,55 @@ def _freshness_bonus(job: dict[str, object]) -> int:
 
 def _description_bonus(job: dict[str, object]) -> int:
     return DIGEST_DESCRIPTION_BONUS if len(str(job.get("description") or "").strip()) >= 200 else 0
+
+
+def _fresher_bonus(job: dict[str, object]) -> int:
+    text = _job_search_text(job)
+    if _has_internship_signal(text):
+        return DIGEST_FRESHER_BONUS + 4
+    if _has_entry_level_signal(text):
+        return DIGEST_FRESHER_BONUS
+    return 0
+
+
+def _is_fresher_suitable(job: dict[str, object]) -> bool:
+    text = _job_search_text(job)
+    if _has_internship_signal(text) or _has_entry_level_signal(text):
+        return True
+    if re.search(r"\b(?:senior|sr\.?|staff|principal|lead|director|head of)\b", text):
+        return False
+    years = [int(value) for value in re.findall(r"\b(\d+)\+?\s+years?\b", text)]
+    return not years or min(years) <= 3
+
+
+def _has_internship_signal(text: str) -> bool:
+    return bool(re.search(r"\b(?:intern|internship|co-?op|coop)\b", text))
+
+
+def _has_entry_level_signal(text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(?:entry[- ]level|new grad(?:uate)?|early career|campus|university grad|"
+            r"junior|associate|trainee|apprentice|rotational)\b",
+            text,
+        )
+    )
+
+
+def _job_search_text(job: dict[str, object]) -> str:
+    return _normalize(
+        " ".join(
+            str(job.get(field) or "")
+            for field in (
+                "title",
+                "role_query",
+                "description",
+                "employment_type",
+                "gemini_experience",
+                "gemini_requirements",
+            )
+        )
+    )
 
 
 def _score_digest_with_gemini(
@@ -730,7 +782,7 @@ def _role_matches(job: dict[str, object], roles: list[str]) -> bool:
     job_title = str(job.get("title") or "")
     job_text = f"{job_title} {job.get('description') or ''}"
     inferred = infer_role_family(job_title, str(job.get("description") or ""))
-    normalized_roles = {_normalize(role) for role in roles}
+    normalized_roles = {_normalize(role) for role in expand_role_preferences(roles)}
     return (
         _normalize(job_role) in normalized_roles
         or _normalize(inferred) in normalized_roles
@@ -961,6 +1013,11 @@ def _priority_signals(job: dict[str, object]) -> list[str]:
         signals.append("posted in last 24h")
     elif freshness:
         signals.append("posted in last 3 days")
+    fresher_bonus = _fresher_bonus(job)
+    if fresher_bonus >= DIGEST_FRESHER_BONUS + 4:
+        signals.append("internship/co-op friendly")
+    elif fresher_bonus:
+        signals.append("entry-level/new-grad friendly")
     if _description_bonus(job):
         signals.append("full description captured")
     return signals or ["resume match"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from job_agent.classification import (
+    expand_role_preferences,
     infer_role_family,
     location_filter_options,
     location_matches,
@@ -44,6 +45,12 @@ class ClassificationTests(unittest.TestCase):
 
         self.assertIn("California", options)
         self.assertIn("Texas", options)
+
+    def test_major_preferences_expand_to_career_families(self) -> None:
+        self.assertIn("Software Engineering", expand_role_preferences(["Computer Science"]))
+        self.assertIn("Data & Analytics", expand_role_preferences(["Statistics"]))
+        self.assertIn("Healthcare", expand_role_preferences(["Biology"]))
+        self.assertIn("Finance & Accounting", expand_role_preferences(["Accounting"]))
 
 
 if __name__ == "__main__":
