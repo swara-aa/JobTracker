@@ -36,3 +36,30 @@ def send_collection_digest(new_jobs: int) -> None:
         if config.SMTP_USERNAME:
             server.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
         server.send_message(message)
+
+
+def send_operational_alert(subject: str, body: str) -> bool:
+    recipient = config.ALERT_EMAIL or config.SMTP_TO
+    sender = config.SMTP_USERNAME or config.SMTP_TO
+    if not (config.SMTP_HOST and sender and recipient):
+        logger.info("Operational alert not sent: SMTP alert settings are not configured.")
+        return False
+
+    message = EmailMessage()
+    message["Subject"] = f"JobTracker alert: {subject}"
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(body)
+
+    if config.SMTP_PORT == 465:
+        server_context = smtplib.SMTP_SSL(config.SMTP_HOST, config.SMTP_PORT, timeout=20)
+    else:
+        server_context = smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20)
+
+    with server_context as server:
+        if config.SMTP_PORT != 465:
+            server.starttls()
+        if config.SMTP_USERNAME:
+            server.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
+        server.send_message(message)
+    return True

@@ -21,6 +21,8 @@
 - If Gemini credits or credentials are unavailable, subscriber emails must not fall back to local-only scored job recommendations.
 - Successful Gemini Batch imports must clear stale billing/retry warnings from Settings.
 - Operations must expose production-readiness status, automation status, Gemini scoring progress, public-board collection status, and digest status.
+- Operations failures must trigger owner alerts for public-board collection, Gemini recent scoring, Gemini batch submission, daily digest delivery, and automation worker crashes.
+- Public marketing and subscriber email links must use the custom domain only after DNS and Azure hostname validation are complete.
 
 ## Nonfunctional Requirements
 
@@ -31,6 +33,8 @@
 - Automation must avoid tight retry loops when Gemini billing, credentials, or prepaid credits are unavailable.
 - Existing local data must not be deleted or overwritten by UI or automation changes.
 - Production routes must keep password protection and secure headers/cookie settings enabled when configured.
+- Operational alerts must de-duplicate repeated failures so one broken dependency does not spam the owner all day.
+- Public email sending must use SPF, DKIM, and DMARC-aligned sender-domain authentication before broad subscriber launch.
 
 ## Acceptance Test Cases
 
@@ -55,12 +59,17 @@
 - Digest excludes local-only recommendations when Gemini-scored recommendations are required.
 - Manual digest sending uses `send_daily_job_digests(use_gemini=True)`.
 - Successful batch import clears stale priority Gemini error state.
+- Operational alerts are sent once per day per repeated failure signature.
+- Custom-domain rollout is not complete until DNS records validate, Azure accepts the hostname, HTTPS is bound, and `JOBTRACKER_PUBLIC_BASE_URL` is updated.
 - Full test suite must pass before production deployment.
 
 ## Latest Verification
 
-- `python -m compileall job_agent tests` passed on 2026-10-03.
-- `python -m pytest` passed: 89 tests on 2026-10-03.
+- `.venv/bin/python -m compileall job_agent tests` passed on 2026-10-03.
+- `.venv/bin/python -m pytest` passed: 92 tests on 2026-10-03.
+- Production deploy completed successfully to `swara-jobtracker-live-api` on 2026-10-03.
+- Production smoke returned 200 for `/api/health`, `/landing`, `/digest-signup`, `/privacy`, `/terms`, `/`, `/jobs`, `/resumes`, `/operations`, `/analytics`, `/api/operations/status`, `/linkedin-review`, and no-op extension import on 2026-10-03.
+- Azure Monitor HTTP 5xx alert `jobtracker-http-5xx` is enabled for the App Service on 2026-10-03.
 - Local route smoke returned 200 for `/landing`, `/digest-signup`, `/privacy`, `/terms`, `/`, `/jobs`, `/operations`, `/analytics`, and `/api/operations/status` on 2026-10-03.
 - Local Flask smoke test on port 5012 returned 200 for `/`, `/jobs`, `/digest-signup`, and `/operations` on 2026-09-27.
 - Production smoke test returned 200 for public `/landing`, `/privacy`, `/terms`, and `/digest-signup` on 2026-09-28.

@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from job_agent.automation import (
     GEMINI_SUBMISSION_STATE_VERSION,
     _digest_scoring_wait_reason,
+    _send_failure_alert_once,
     _maybe_collect_public_boards,
     _maybe_refresh_gemini_batch,
     _maybe_score_recent_jobs_with_gemini,
@@ -21,6 +22,21 @@ from job_agent.automation import (
 
 
 class GeminiAutomationTests(unittest.TestCase):
+    def test_failure_alert_is_deduped_per_day_and_signature(self) -> None:
+        state: dict[str, object] = {}
+        now = datetime(2026, 9, 13, 9, 30, tzinfo=ZoneInfo("America/Chicago"))
+
+        with (
+            patch("job_agent.automation._digest_now", return_value=now),
+            patch("job_agent.automation.send_operational_alert", return_value=True) as alert,
+        ):
+            first = _send_failure_alert_once(state, "collection", "Collection failed", "boom")
+            second = _send_failure_alert_once(state, "collection", "Collection failed", "boom")
+
+        self.assertTrue(first)
+        self.assertFalse(second)
+        self.assertEqual(alert.call_count, 1)
+
     def test_depleted_credits_use_long_backoff(self) -> None:
         seconds, label = _gemini_retry_policy(
             RuntimeError("402 Payment Required: prepayment credits are depleted")

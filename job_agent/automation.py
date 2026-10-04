@@ -17,6 +17,7 @@ from job_agent.config import (
     PRIORITY_GEMINI_DAILY_LIMIT,
     get_user_setting,
 )
+from job_agent.notifications import send_operational_alert
 
 
 logger = logging.getLogger(__name__)
@@ -44,6 +45,29 @@ _runtime = {
     "phase": "stopped",
     "last_error": "",
 }
+
+
+def _send_failure_alert_once(
+    state: dict[str, object],
+    key: str,
+    subject: str,
+    body: str,
+) -> bool:
+    marker_key = f"alert_{key}_date"
+    signature_key = f"alert_{key}_signature"
+    today = _digest_now().date().isoformat()
+    signature = body[:240]
+    if state.get(marker_key) == today and state.get(signature_key) == signature:
+        return False
+    try:
+        sent = send_operational_alert(subject, body)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Operational alert failed: %s", exc)
+        return False
+    if sent:
+        state[marker_key] = today
+        state[signature_key] = signature
+    return sent
 
 
 def start_automation_coordinator() -> dict[str, object]:
@@ -87,6 +111,12 @@ def run_automation_forever() -> None:
                     "worker_heartbeat_at": _now().isoformat(),
                     "worker_last_error": error,
                 }
+            )
+            _send_failure_alert_once(
+                state,
+                "worker_failure",
+                "Automation worker failure",
+                f"The automation worker failed and will retry.\n\nError: {error}",
             )
             _write_state(state)
         _wake.wait(POLL_SECONDS)
@@ -319,7 +349,25 @@ def _maybe_collect_public_boards() -> None:
     _runtime["phase"] = "collecting public boards"
     from job_agent.collector import run_collection_and_prepare_matches
 
-    result = run_collection_and_prepare_matches(submit_gemini=False)
+    try:
+        result = run_collection_and_prepare_matches(submit_gemini=False)
+    except Exception as exc:
+        error = str(exc).replace("\n", " ")[:300]
+        state = _read_state()
+        state.update(
+            {
+                "public_collection_finished_at": _now().isoformat(),
+                "message": f"Public-board collection failed: {error}",
+            }
+        )
+        _send_failure_alert_once(
+            state,
+            "public_collection_failure",
+            "Public-board collection failure",
+            f"Public job collection failed.\n\nError: {error}",
+        )
+        _write_state(state)
+        raise
     saved_ids = [int(job_id) for job_id in result["saved_job_ids"]]
     now = _now()
     state = _read_state()
@@ -435,6 +483,15 @@ def _maybe_score_recent_jobs_with_gemini() -> None:
         state["message"] = (
             f"Gemini scored {completed} recent job(s), then paused: {last_error}. "
             f"Retrying {retry_label}."
+        )
+        _send_failure_alert_once(
+            state,
+            "priority_gemini_failure",
+            "Gemini recent-job scoring failure",
+            (
+                f"Gemini recent-job scoring paused after {completed} job(s).\n\n"
+                f"Error: {last_error}\nRetry: {retry_label}"
+            ),
         )
     else:
         state["priority_gemini_retry_not_before"] = ""
@@ -567,6 +624,16 @@ def _maybe_submit_gemini_batch() -> None:
                 ),
             }
         )
+        _send_failure_alert_once(
+            state,
+            "gemini_batch_submission_failure",
+            "Gemini batch submission failure",
+            (
+                f"Gemini batch submission failed on attempt {failures + 1}/"
+                f"{MAX_DAILY_BATCH_FAILURES}.\n\nError: "
+                f"{str(exc).replace(chr(10), ' ')[:300]}"
+            ),
+        )
         _write_state(state)
         return
     state = _read_state()
@@ -647,11 +714,31 @@ def _maybe_send_daily_digests() -> None:
                 "digest_retry_not_before": "",
                 "message": (
                     "Daily digest stopped after three attempts because no qualifying "
-                    "90+ matches were available or delivery failed."
+                    "70+ fallback matches were available or delivery failed."
                 ),
             }
         )
     state.update(update)
+    if int(result["failures"]) > 0:
+        _send_failure_alert_once(
+            state,
+            "digest_delivery_failure",
+            "Daily digest delivery failure",
+            (
+                f"Daily digest had {result['failures']} delivery failure(s), "
+                f"{result['sent']} sent, and {result['skipped']} skipped."
+            ),
+        )
+    elif attempts >= MAX_DAILY_DIGEST_ATTEMPTS and int(result["skipped"]) > 0:
+        _send_failure_alert_once(
+            state,
+            "digest_no_sendable_matches",
+            "Daily digest had no sendable matches",
+            (
+                f"Daily digest stopped after {attempts} attempts with "
+                f"{result['skipped']} skipped subscriber(s)."
+            ),
+        )
     _write_state(state)
 
 
