@@ -48,6 +48,8 @@ MAX_ADVICE_DESCRIPTION_LENGTH = 16000
 MAX_ADVICE_RESUME_LENGTH = 30000
 MAX_MATCH_DESCRIPTION_LENGTH = 18000
 MAX_MATCH_RESUME_LENGTH = 14000
+MAX_MATCH_ATTEMPTS = 2
+MATCH_MAX_OUTPUT_TOKENS = 4096
 MAX_ADVICE_ATTEMPTS = 2
 
 ADVICE_SCHEMA = {
@@ -107,6 +109,8 @@ requirement terms wherever possible. Matched terms must be supported by the resu
 terms must be absent or not made prominent in the resume.
 Improvements must be truthful, specific edits or learning/project suggestions; never advise the
 candidate to claim experience they do not have. Keep each item concise.
+Keep rationale strings under 45 words and each list to no more than 8 concise items so the JSON
+response does not truncate.
 Set hard_no=true only for an explicit posting requirement that the F-1/OPT candidate cannot
 meet, such as U.S. citizenship, a required active security clearance, or explicit language that
 the candidate must be permanently authorized to work in the U.S. without present or future
@@ -119,22 +123,30 @@ hard_no_reasons.
         "generationConfig": {
             "responseMimeType": "application/json",
             "responseSchema": MATCH_SCHEMA,
-            "maxOutputTokens": 2500,
+            "maxOutputTokens": MATCH_MAX_OUTPUT_TOKENS,
         },
     }
-    response = _post_with_retries(
-        API_URL.format(model=model),
-        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-        json=payload,
-        timeout=180,
-    )
-    body = response.json()
-    parts = body.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-    text = next((part.get("text") for part in parts if part.get("text")), "")
-    if not text:
-        raise RuntimeError(f"Gemini returned no resume comparison: {json.dumps(body)[:500]}")
-    rankings = json.loads(text).get("rankings", [])
-    _validate_rankings(rankings, {int(resume["id"]) for resume in resumes})
+    expected_ids = {int(resume["id"]) for resume in resumes}
+    last_error: Exception | None = None
+    for _ in range(MAX_MATCH_ATTEMPTS):
+        response = _post_with_retries(
+            API_URL.format(model=model),
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=180,
+        )
+        body = response.json()
+        parts = body.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+        text = next((part.get("text") for part in parts if part.get("text")), "")
+        if not text:
+            raise RuntimeError(f"Gemini returned no resume comparison: {json.dumps(body)[:500]}")
+        try:
+            rankings = _parse_rankings_response(text, expected_ids)
+            break
+        except ValueError as exc:
+            last_error = exc
+    else:
+        raise RuntimeError("Gemini returned invalid resume comparison JSON. Please retry.") from last_error
     _save_rankings(job_id, rankings)
     return rankings
 
@@ -231,6 +243,20 @@ def _parse_advice_response(advice_text: str) -> dict[str, str]:
     ):
         raise ValueError("Gemini returned invalid resume advice.")
     return {key: str(advice[key]).strip() for key in ADVICE_SCHEMA["required"]}
+
+
+def _parse_rankings_response(response_text: str, expected_ids: set[int]) -> list[dict[str, Any]]:
+    try:
+        parsed = json.loads(response_text)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Gemini returned malformed ranking JSON: {exc.msg}") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("Gemini returned a non-object ranking response.")
+    rankings = parsed.get("rankings", [])
+    if not isinstance(rankings, list):
+        raise ValueError("Gemini returned rankings in an invalid format.")
+    _validate_rankings(rankings, expected_ids)
+    return rankings
 
 
 def _validate_rankings(rankings: list[dict[str, Any]], expected_ids: set[int]) -> None:

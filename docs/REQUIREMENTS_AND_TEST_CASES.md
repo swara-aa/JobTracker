@@ -9,6 +9,7 @@
 - Jobs shown in Dashboard and default Browse Jobs must already have a saved Gemini resume-match score.
 - Jobs collected recently but waiting for Gemini must remain visible through the pending Gemini queue.
 - New described jobs must be prioritized for immediate Gemini scoring before backlog batch scoring.
+- Fast Gemini scoring must retry once when Gemini returns malformed/truncated ranking JSON before falling back to batch scoring.
 - The subscriber digest must only send qualifying matches that pass the configured score threshold and live apply-readiness check.
 - If no/few verified-open 90+ matches are available, subscriber digest recommendations may fall back to verified-open 80+ and then 70+ matches, with clear lower-score messaging.
 - Every subscriber email must include manage-preferences and unsubscribe links.
@@ -55,6 +56,7 @@
 - Senior-only or high-years-required jobs are excluded from fresher-focused subscriber digests when appropriate internship/new-grad/entry-level alternatives exist.
 - `recent_described_job_ids_without_gemini_match` excludes jobs before the exact cutoff timestamp.
 - Automation immediately calls Gemini for recent described jobs while a backlog batch is active.
+- Fast Gemini scoring wraps malformed ranking JSON errors and retries before surfacing a failure.
 - Digest waits before the latest send time when today's described jobs are not fully Gemini scored.
 - Digest excludes local-only recommendations when Gemini-scored recommendations are required.
 - Manual digest sending uses `send_daily_job_digests(use_gemini=True)`.
@@ -65,6 +67,9 @@
 
 ## Latest Verification
 
+- `.venv/bin/python -m compileall job_agent tests` passed on 2026-10-05.
+- `.venv/bin/python -m pytest` passed: 95 tests on 2026-10-05.
+- Production Operations showed Gemini Batch succeeded for 15/15 described jobs on 2026-10-05; a prior fast-scoring attempt failed on malformed Gemini JSON and is covered by the retry fix.
 - `.venv/bin/python -m compileall job_agent tests` passed on 2026-10-03.
 - `.venv/bin/python -m pytest` passed: 92 tests on 2026-10-03.
 - Production deploy completed successfully to `swara-jobtracker-live-api` on 2026-10-03.

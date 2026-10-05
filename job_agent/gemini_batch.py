@@ -9,10 +9,11 @@ from typing import Any
 from job_agent.config import DATA_DIR, GEMINI_BATCH_SIZE, get_user_setting
 from job_agent.resume_matcher import (
     MATCH_SCHEMA,
+    MATCH_MAX_OUTPUT_TOKENS,
     MAX_MATCH_DESCRIPTION_LENGTH,
     MAX_MATCH_RESUME_LENGTH,
+    _parse_rankings_response,
     _save_rankings,
-    _validate_rankings,
 )
 from job_agent.storage import (
     described_job_ids_without_gemini_match,
@@ -174,10 +175,10 @@ def _request_for(job_id: int, resumes: list[dict[str, object]]) -> dict[str, obj
         f"=== RESUME ID {resume['id']}: {resume['name']} ===\n{str(resume['content'])[:MAX_MATCH_RESUME_LENGTH]}"
         for resume in resumes
     )
-    prompt = f"""Compare each resume with this job posting and rank its application fit.\n\nJOB: {job['title']} at {job['company']}\nLOCATION: {job['location']}\nJOB DESCRIPTION:\n{str(job['description'])[:MAX_MATCH_DESCRIPTION_LENGTH]}\n\nRESUMES:\n{resume_sections}\n\nReturn one ranking for every resume ID. Score 0-100 using required skills (35), relevant experience/projects (30), education/baseline qualifications (15), preferred skills (10), and clarity/evidence (10). Do not invent qualifications. Return exact posting terms for matched_skills and missing_skills. Set hard_no=true only for explicit citizenship, clearance, or permanent-work-authorization-without-sponsorship requirements."""
+    prompt = f"""Compare each resume with this job posting and rank its application fit.\n\nJOB: {job['title']} at {job['company']}\nLOCATION: {job['location']}\nJOB DESCRIPTION:\n{str(job['description'])[:MAX_MATCH_DESCRIPTION_LENGTH]}\n\nRESUMES:\n{resume_sections}\n\nReturn one ranking for every resume ID. Score 0-100 using required skills (35), relevant experience/projects (30), education/baseline qualifications (15), preferred skills (10), and clarity/evidence (10). Do not invent qualifications. Return exact posting terms for matched_skills and missing_skills. Keep rationale strings under 45 words and each list to no more than 8 concise items. Set hard_no=true only for explicit citizenship, clearance, or permanent-work-authorization-without-sponsorship requirements."""
     return {
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generation_config": {"response_mime_type": "application/json", "response_schema": MATCH_SCHEMA, "max_output_tokens": 2500},
+        "generation_config": {"response_mime_type": "application/json", "response_schema": MATCH_SCHEMA, "max_output_tokens": MATCH_MAX_OUTPUT_TOKENS},
     }
 
 
@@ -198,8 +199,10 @@ def _import_results(client: Any, batch: Any) -> tuple[int, int]:
             response = item["response"]
             parts = response.get("candidates", [{}])[0].get("content", {}).get("parts", [])
             text = next(part.get("text") for part in parts if part.get("text"))
-            rankings = json.loads(text).get("rankings", [])
-            _validate_rankings(rankings, {int(resume["id"]) for resume in fetch_resumes()})
+            rankings = _parse_rankings_response(
+                text,
+                {int(resume["id"]) for resume in fetch_resumes()},
+            )
             _save_rankings(job_id, rankings)
             completed += 1
         except Exception as exc:  # noqa: BLE001
